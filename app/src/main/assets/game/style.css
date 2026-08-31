@@ -811,3 +811,30 @@ h1,.panel-head h2{color:#d6bb83;text-shadow:0 2px 18px rgba(170,133,72,.22)}
   .level-select-screen{padding-top:10px!important;padding-bottom:30px!important;}
   .result-screen .result-panel{width:min(680px,52vw)!important;max-height:82vh!important;padding:18px 22px 16px!important;}
 }
+
+
+/* V12 verified micro tuning: requested UI-only adjustments. */
+@media (pointer:coarse) and (orientation:landscape){
+  .heist-menu .heist-menu-panel{width:min(600px,45vw)!important;padding:10px 12px 8px!important;}
+  #gameScreen .corner-tools{left:8px!important;bottom:8px!important;gap:6px!important;}
+  #gameScreen .tool-btn{min-height:42px!important;padding:8px 12px!important;font-size:.82rem!important;}
+  #gameScreen .joystick{width:128px!important;height:128px!important;right:16px!important;bottom:16px!important;}
+  #gameScreen .joystick::after{inset:21px!important;}
+  #gameScreen .joystick #joystickKnob{width:52px!important;height:52px!important;}
+  #gameScreen .message-hud{padding:6px 10px!important;font-size:70%!important;max-width:70vw!important;overflow:hidden!important;text-overflow:ellipsis!important;}
+  .result-screen .result-panel{width:min(680px,46vw)!important;padding:20px 22px 18px!important;max-height:78vh!important;}
+}
+@media (pointer:coarse) and (orientation:landscape) and (max-height:520px){
+  .heist-menu .heist-menu-panel{width:min(560px,45vw)!important;}
+  .result-screen .result-panel{width:min(640px,48vw)!important;}
+}
+@media (max-width:1000px) and (orientation:landscape){
+  .heist-menu .heist-menu-panel{width:min(600px,45vw)!important;padding:10px 12px 8px!important;}
+  #gameScreen .corner-tools{left:8px!important;bottom:8px!important;gap:6px!important;}
+  #gameScreen .tool-btn{min-height:42px!important;padding:8px 12px!important;font-size:.82rem!important;}
+  #gameScreen .joystick{width:128px!important;height:128px!important;right:16px!important;bottom:16px!important;}
+  #gameScreen .joystick::after{inset:21px!important;}
+  #gameScreen .joystick #joystickKnob{width:52px!important;height:52px!important;}
+  #gameScreen .message-hud{padding:6px 10px!important;font-size:70%!important;max-width:70vw!important;overflow:hidden!important;text-overflow:ellipsis!important;}
+  .result-screen .result-panel{width:min(680px,46vw)!important;padding:20px 22px 18px!important;max-height:78vh!important;}
+}

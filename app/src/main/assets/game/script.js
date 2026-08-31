@@ -134,8 +134,9 @@
     // The uploaded MP3 is the single background track for MENU + LEVELS.
     // Keep the same HTMLAudioElement alive so playback position is continuous
     // while moving from the main menu to the round-selection screen.
-    if(next==='MENU'){ fadeMainTitleIn(false); }
-    else if(next==='LEVELS'){ fadeMainTitleIn(false); }
+    if(next==='MENU'){ fadeMainTitleIn(false, 0.28); }
+    else if(next==='LEVELS'){ fadeMainTitleIn(false, 0.28); }
+    else if(next==='PLAYING'){ fadeMainTitleIn(false, 0.40); }
     else { fadeMainTitleOut(); }
   }
 
@@ -518,7 +519,7 @@
     isMapFullyLoaded=false;
     setState('PLAYING');
     buildLevel();
-    try { startNativeMusic(); } catch (_) {}
+    try { setMainTitleGameplayVolume(); } catch (_) {}
   }
 
   function buildLevel(){
@@ -1713,49 +1714,92 @@
     }catch(err){console.warn('Audio setup failed',err);return null;}
   }
 
+  let mainTitleStartPositionApplied=false;
+  const MAIN_TITLE_START=2;
+  const MAIN_MENU_VOLUME=0.28;
+  const GAMEPLAY_MUSIC_VOLUME=0.40;
+
+  function seekMainTitleToStart(){
+    const mm=mainTitleMusic;
+    if(!mm || mainTitleStartPositionApplied) return;
+    try{
+      if(Number.isFinite(mm.duration) && mm.duration>MAIN_TITLE_START){
+        mm.currentTime=Math.min(MAIN_TITLE_START, Math.max(0, mm.duration-0.05));
+        mainTitleStartPositionApplied=true;
+      }
+    }catch(_){}
+  }
+
   function ensureMainTitleMusic(){
     try{
       if(!mainTitleMusic){
         mainTitleMusic=document.getElementById('mainTitleAudio') || new Audio('assets/main-title.mp3');
         mainTitleMusic.preload='auto';
-        mainTitleMusic.loop=true;
+        mainTitleMusic.loop=false;
         mainTitleMusic.setAttribute('playsinline','');
-        mainTitleMusic.volume=0.28;
+        mainTitleMusic.autoplay=false;
+        mainTitleMusic.volume=MAIN_MENU_VOLUME;
         if(!mainTitleMusic.src) mainTitleMusic.src='assets/main-title.mp3';
+        mainTitleMusic.addEventListener('loadedmetadata',()=>seekMainTitleToStart(),{once:true});
+        mainTitleMusic.addEventListener('ended',()=>{
+          try{
+            mainTitleStartPositionApplied=false;
+            mainTitleMusic.currentTime=MAIN_TITLE_START;
+            mainTitleMusic.play().catch(()=>{});
+          }catch(_){}
+        });
         mainTitleMusic.addEventListener('error',()=>{ setAudioStatusSafe('موسيقى الواجهة: تعذر تحميل الملف'); },{once:false});
       }
       mainTitleMusic.muted=isMuted;
+      seekMainTitleToStart();
       return mainTitleMusic;
     }catch(_){return null;}
   }
 
-  function fadeMainTitleIn(restart=false){
+  function fadeMainTitleIn(restart=false, targetVolume=MAIN_MENU_VOLUME){
     const mm=ensureMainTitleMusic();
     if(!mm||isMuted)return false;
     try{
       if(mainTitleFadeTimer)clearInterval(mainTitleFadeTimer);
       mm.muted=false;
-      if(restart) mm.currentTime=0;
+      if(restart){
+        mainTitleStartPositionApplied=false;
+        try{mm.currentTime=MAIN_TITLE_START;}catch(_){}
+      } else {
+        seekMainTitleToStart();
+      }
       if(mm.paused){
         const p=mm.play();
-        if(p&&typeof p.then==='function'){
-          p.then(()=>setAudioStatusSafe('الصوت: موسيقى الواجهة تعمل'))
-           .catch(err=>{
-             titleMusicGestureUnlocked=false;
-             const msg=err&&err.name==='NotAllowedError' ? 'الصوت: سيبدأ تلقائيًا عند أول تفاعل مع اللعبة' : 'الموسيقى: تعذر تشغيل الملف';
-             setAudioStatusSafe(msg);
-           });
-        }
+        if(p&&typeof p.then==='function')p.then(()=>setAudioStatusSafe('الصوت: موسيقى الواجهة تعمل')).catch(err=>{
+          titleMusicGestureUnlocked=false;
+          const msg=err&&err.name==='NotAllowedError' ? 'الصوت: سيبدأ تلقائيًا عند أول تفاعل مع اللعبة' : 'الموسيقى: تعذر تشغيل الملف';
+          setAudioStatusSafe(msg);
+        });
       }
-      const startVol=Number.isFinite(mm.volume)?Math.min(mm.volume,0.33):0.33;
-      if(startVol>=0.399)return true;
-      const start=performance.now(), from=startVol, target=0.40;
+      const from=Number.isFinite(mm.volume)?mm.volume:MAIN_MENU_VOLUME;
+      const target=Math.max(0,Math.min(1,targetVolume));
+      if(Math.abs(from-target)<0.002){mm.volume=target;return true;}
+      const start=performance.now();
       mainTitleFadeTimer=setInterval(()=>{
         if(!mm){clearInterval(mainTitleFadeTimer);mainTitleFadeTimer=0;return;}
-        const q=Math.min(1,(performance.now()-start)/700);
-        mm.volume=from+(target-from)*(q*q*(3-2*q));
+        const q=Math.min(1,(performance.now()-start)/450),s=q*q*(3-2*q);
+        mm.volume=from+(target-from)*s;
         if(q>=1){clearInterval(mainTitleFadeTimer);mainTitleFadeTimer=0;}
       },25);
+      return true;
+    }catch(_){return false;}
+  }
+
+  function setMainTitleGameplayVolume(){
+    const mm=ensureMainTitleMusic();
+    if(!mm||isMuted)return false;
+    try{
+      if(mm.paused){
+        seekMainTitleToStart();
+        const p=mm.play();
+        if(p&&typeof p.catch==='function')p.catch(()=>{});
+      }
+      mm.volume=GAMEPLAY_MUSIC_VOLUME;
       return true;
     }catch(_){return false;}
   }
@@ -1858,8 +1902,9 @@
       if(resultMusicFadeTimer)clearInterval(resultMusicFadeTimer);
       rm.muted=false;
       rm.volume=0;
+      try{ rm.currentTime=1; }catch(_){}
       void rm.play();
-      const target=.20;
+      const target=.24;
       const start=performance.now();
       resultMusicFadeTimer=setInterval(()=>{
         if(!rm||rm.paused){clearInterval(resultMusicFadeTimer);resultMusicFadeTimer=0;return;}
@@ -1906,7 +1951,7 @@
         music.finalGain.gain.cancelScheduledValues(audio.ac.currentTime);
         music.finalGain.gain.setTargetAtTime(isMuted?0:.08,audio.ac.currentTime,.08);
       }
-      if(!isMuted && gameState==='PLAYING' && (!music.started || !music.ready)) startNativeMusic();
+      if(!isMuted && gameState==='PLAYING') setMainTitleGameplayVolume();
     }catch(_){}
   }
 
@@ -2127,7 +2172,7 @@
         const mm=ensureMainTitleMusic();
         if(mm && mm.src){
           titleMusicGestureUnlocked=true;
-          try { mm.muted=false; mm.volume=0.28; const p=mm.play(); if(p&&typeof p.catch==='function') p.catch(()=>{ titleMusicGestureUnlocked=false; }); } catch(_) { titleMusicGestureUnlocked=false; }
+          try { mm.muted=false; mm.volume=(gameState==='PLAYING'?GAMEPLAY_MUSIC_VOLUME:MAIN_MENU_VOLUME); seekMainTitleToStart(); const p=mm.play(); if(p&&typeof p.catch==='function') p.catch(()=>{ titleMusicGestureUnlocked=false; }); } catch(_) { titleMusicGestureUnlocked=false; }
           fadeMainTitleIn(false);
         }
       }
@@ -2175,7 +2220,7 @@
         if(gameState==='MENU' || gameState==='LEVELS') {
           try{ titleMusicGestureUnlocked=true; fadeMainTitleIn(false); }catch(_){}
         } else if(gameState==='PLAYING') {
-          try{ startNativeMusic(); }catch(_){}
+          try{ setMainTitleGameplayVolume(); }catch(_){}
           setMusicChase(!!world?.anyChase);
         }
         setAudioStatusSafe('الصوت: يعمل');
