@@ -1,0 +1,5 @@
+Silent Raid Android project
+
+Upload the contents of this archive to the repository root.
+Project root contains app/, build.gradle, settings.gradle, gradle.properties, and .github/.
+The GitHub Actions workflow generates the Gradle Wrapper during CI.

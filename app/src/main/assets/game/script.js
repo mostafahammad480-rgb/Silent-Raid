@@ -1157,10 +1157,48 @@
   }
 
   function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+  // Gameplay-only camera zoom. The logical world remains 800x600 and all
+  // movement/collision coordinates stay unchanged. We only change the render
+  // transform so the player/guards read slightly larger on a phone.
+  const GAME_CAMERA_ZOOM = 1.06;
+
+  function getGameplayCamera(){
+    const p = world?.player;
+    if(!p) return {x:W/2,y:H/2};
+    const viewW = W / GAME_CAMERA_ZOOM;
+    const viewH = H / GAME_CAMERA_ZOOM;
+    const halfW = viewW / 2;
+    const halfH = viewH / 2;
+    return {
+      x:Math.min(Math.max(p.x, halfW), W-halfW),
+      y:Math.min(Math.max(p.y, halfH), H-halfH)
+    };
+  }
+
+  function beginGameplayCamera(){
+    const cam = getGameplayCamera();
+    ctx.save();
+    ctx.translate(W/2,H/2);
+    ctx.scale(GAME_CAMERA_ZOOM,GAME_CAMERA_ZOOM);
+    ctx.translate(-cam.x,-cam.y);
+  }
+
   function draw(now){
-    ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
+    ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);
+    ctx.fillStyle='#000';
+    ctx.fillRect(0,0,W,H);
     if(gameState!=='PLAYING'||!world||!isMapFullyLoaded)return;
-    drawWorld(now); drawLighting(now); drawHUDEffects(now);
+
+    // Keep the entire gameplay render in one consistent camera transform.
+    // HUD text/buttons remain outside it so their sizes do not grow.
+    beginGameplayCamera();
+    try{
+      drawWorld(now);
+      drawLighting(now);
+    }finally{
+      ctx.restore();
+    }
+    drawHUDEffects(now);
   }
   function buildBackgroundLayer(w){
     const layer=document.createElement('canvas'); layer.width=W; layer.height=H;

@@ -25,6 +25,10 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setBuiltInZoomControls(false);
         s.setDisplayZoomControls(false);
+        s.setSupportZoom(false);
+        s.setUseWideViewPort(true);
+        s.setLoadWithOverviewMode(false);
+        s.setTextZoom(100);
         webView.setWebViewClient(new WebViewClient());
         webView.setWebChromeClient(new WebChromeClient());
         webView.loadUrl("file:///android_asset/game/index.html");
