@@ -1,11 +1,11 @@
-# SILENT RAID — نسخة Android
+# Silent Raid — Phone Balanced V2
 
-هذا المشروع يغلف نسخة HTML/CSS/JavaScript الأصلية داخل WebView لتعمل كتطبيق Android.
+نسخة Android مضبوطة للهواتف العريضة Landscape:
 
-## بناء APK
-
-يمكن فتح المشروع في Android Studio ثم اختيار Build > Build APK(s).
-
-أو رفع المشروع إلى GitHub واستخدام ملف GitHub Actions الموجود في `.github/workflows/android.yml`.
-
-بعد نجاح البناء سيظهر APK في قسم Artifacts باسم `silent-raid-apk`.
+- Full Screen حقيقي بإخفاء شريطي الحالة والتنقل.
+- القائمة الرئيسية أصغر حتى لا تحجب شخصيتي اللص والحارس.
+- شاشة Game Over أصغر ومتوازنة.
+- أزرار «إعادة» و«الأدوار» أكبر ومثبتة في أقصى اليسار.
+- Joystick أكبر قليلًا.
+- تكبير لعب خفيف 1.08x بكاميرا مقيدة بحدود العالم حتى لا يحدث انزلاق أو قص مفاجئ.
+- منطق اللعبة الأصلي والخريطة والإضاءة والصوت لم تُعدّل.

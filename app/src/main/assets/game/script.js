@@ -29,12 +29,33 @@
     document.documentElement.style.setProperty('--game-ui-scale', uiScale.toFixed(4));
     ctxReady = false;
   }
+  // Mild gameplay camera zoom: makes the thief, guards and map details easier to read
+  // without changing collision coordinates or the logical map generation.
+  const GAMEPLAY_ZOOM = 1.08;
+  let cameraX = 400, cameraY = 300;
+
   let ctxReady = true;
   sizeGameplayViewport();
   const ctx = canvas.getContext('2d', { alpha: false });
   ctx.imageSmoothingEnabled = true;
   function applyViewportTransform(){
-    ctx.setTransform(RENDER_SCALE * viewportScale, 0, 0, RENDER_SCALE * viewportScale, 0, 0);
+    const zoom = GAMEPLAY_ZOOM;
+    const viewW = (window.innerWidth || 800) / viewportScale / zoom;
+    const viewH = (window.innerHeight || 600) / viewportScale / zoom;
+    const p = world?.player;
+    const targetX = Number.isFinite(p?.x) ? p.x : W / 2;
+    const targetY = Number.isFinite(p?.y) ? p.y : H / 2;
+    const halfW = viewW / 2, halfH = viewH / 2;
+    cameraX = Math.max(halfW, Math.min(W - halfW, targetX));
+    cameraY = Math.max(halfH, Math.min(H - halfH, targetY));
+    if (W < viewW) cameraX = W / 2;
+    if (H < viewH) cameraY = H / 2;
+    ctx.setTransform(
+      RENDER_SCALE * viewportScale * zoom, 0, 0,
+      RENDER_SCALE * viewportScale * zoom,
+      RENDER_SCALE * viewportScale * zoom * (viewW / 2 - cameraX),
+      RENDER_SCALE * viewportScale * zoom * (viewH / 2 - cameraY)
+    );
   }
   window.addEventListener('resize', () => {
     const oldW = W, oldH = H;
@@ -1195,7 +1216,11 @@
 
   function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
   function draw(now){
-    applyViewportTransform();ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
+    applyViewportTransform();
+    ctx.fillStyle='#000';
+    const viewW=(window.innerWidth||800)/viewportScale;
+    const viewH=(window.innerHeight||600)/viewportScale;
+    ctx.fillRect(cameraX-viewW/2,cameraY-viewH/2,viewW,viewH);
     if(gameState!=='PLAYING'||!world||!isMapFullyLoaded)return;
     drawWorld(now); drawLighting(now); drawHUDEffects(now);
   }
