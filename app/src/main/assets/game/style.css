@@ -711,3 +711,43 @@ h1,.panel-head h2{color:#d6bb83;text-shadow:0 2px 18px rgba(170,133,72,.22)}
   /* Prevent old menu/game animations from replacing the shared geometry. */
   .heist-menu .heist-menu-panel,.heist-menu .heist-title-lockup,.result-screen .result-panel{will-change:auto;}
 }
+
+
+/* ===== V10: final proportional UI + deterministic level scrolling ===== */
+@media (pointer:coarse) and (orientation:landscape){
+  /* Main-menu card: reduce only the panel; preserve its internal proportions. */
+  .heist-menu .heist-menu-panel{
+    width:min(820px,72vw)!important;
+    padding:12px 14px 10px!important;
+    bottom:3.2%!important;
+  }
+  .heist-menu .heist-primary{min-height:45px!important;padding:10px 12px!important;}
+  .heist-menu .heist-secondary{min-height:39px!important;padding:9px 11px!important;}
+  .heist-menu .menu-tip{font-size:8.5px!important;margin-top:6px!important;}
+  .heist-menu .menu-credit{font-size:9.5px!important;margin-top:5px!important;}
+
+  /* Victory + Game Over: identical, smaller geometry. */
+  .result-screen .result-panel{
+    width:min(760px,58vw)!important;
+    padding:22px 26px 20px!important;
+    border-radius:20px!important;
+  }
+  .result-screen .result-glyph{width:60px!important;height:60px!important;margin-bottom:9px!important;}
+  .result-screen .money-bag-glyph svg,
+  .result-screen .prison-glyph svg{width:60px!important;height:60px!important;}
+  .result-screen .result-panel h2{font-size:clamp(1.5rem,3.6vw,2.2rem)!important;}
+  .result-screen .result-panel p{font-size:clamp(.82rem,1.55vw,1rem)!important;margin:9px 0 18px!important;}
+  .result-screen .result-actions{gap:9px!important;}
+  .result-screen .result-actions .primary-btn,
+  .result-screen .result-actions .secondary-btn{min-height:44px!important;padding:10px 12px!important;}
+
+  /* Level selector: browser must not take over the vertical gesture. */
+  .level-select-screen{
+    overflow-y:auto!important;
+    overflow-x:hidden!important;
+    touch-action:none!important;
+    overscroll-behavior:contain!important;
+    -webkit-overflow-scrolling:auto!important;
+  }
+  .level-select-screen .level-select-shell{min-height:max-content!important;}
+}
