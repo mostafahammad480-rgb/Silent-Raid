@@ -3,11 +3,47 @@
 
   const canvas = document.getElementById('gameCanvas');
   const W = 800, H = 600;
-  const RENDER_SCALE = 2;
-  canvas.width = W * RENDER_SCALE;
-  canvas.height = H * RENDER_SCALE;
   const ctx = canvas.getContext('2d', { alpha: false });
   ctx.imageSmoothingEnabled = true;
+
+  // Fullscreen responsive renderer. Physics/world coordinates remain the original
+  // 800x600 space. Only the final render gets a uniform scale and a clamped camera.
+  const GAME_RENDER_ZOOM = 1.08;
+  const viewport = { width: W, height: H, dpr: 1, scale: 1, viewW: W, viewH: H, cameraX: 0, cameraY: 0 };
+
+  function clampValue(v,min,max){ return Math.max(min, Math.min(max, v)); }
+
+  function resizeGameSurface(){
+    const width = Math.max(1, window.innerWidth || document.documentElement.clientWidth || W);
+    const height = Math.max(1, window.innerHeight || document.documentElement.clientHeight || H);
+    const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+    viewport.width = width;
+    viewport.height = height;
+    viewport.dpr = dpr;
+    viewport.scale = Math.min(width / W, height / H) * GAME_RENDER_ZOOM;
+    viewport.viewW = width / viewport.scale;
+    viewport.viewH = height / viewport.scale;
+    canvas.width = Math.max(1, Math.round(width * dpr));
+    canvas.height = Math.max(1, Math.round(height * dpr));
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    updateCamera();
+  }
+
+  function updateCamera(){
+    if(!world || !world.player){
+      viewport.cameraX = (W - viewport.viewW) / 2;
+      viewport.cameraY = (H - viewport.viewH) / 2;
+      return;
+    }
+    const maxX = Math.max(0, W - viewport.viewW);
+    const maxY = Math.max(0, H - viewport.viewH);
+    viewport.cameraX = maxX > 0 ? clampValue(world.player.x - viewport.viewW/2, 0, maxX) : (W - viewport.viewW)/2;
+    viewport.cameraY = maxY > 0 ? clampValue(world.player.y - viewport.viewH/2, 0, maxY) : (H - viewport.viewH)/2;
+  }
+
+  window.addEventListener('resize', resizeGameSurface, {passive:true});
+  window.addEventListener('orientationchange', () => setTimeout(resizeGameSurface, 160), {passive:true});
 
   const screens = {
     MENU: document.getElementById('menuScreen'),
@@ -58,6 +94,8 @@
     { name: 'المرحلة الثالثة', subtitle: 'التحدي النهائي', tone: 'red' }
   ];
   let world = null;
+  // The world variable is now initialized before the first viewport sizing pass.
+  resizeGameSurface();
 
   const DIFF = {
     1: { corridor: 3, room: 5 },
@@ -1158,9 +1196,23 @@
 
   function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
   function draw(now){
-    ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
+    updateCamera();
+
+    // Fill the actual phone/desktop viewport first.
+    ctx.setTransform(viewport.dpr,0,0,viewport.dpr,0,0);
+    ctx.fillStyle='#000';
+    ctx.fillRect(0,0,viewport.width,viewport.height);
+
     if(gameState!=='PLAYING'||!world||!isMapFullyLoaded)return;
-    drawWorld(now); drawLighting(now); drawHUDEffects(now);
+
+    // Render the original logical world with one uniform scale. On wide phones the
+    // viewport becomes wider than the 800px world, so the complete world stays in
+    // view horizontally; vertically the camera follows the player and clamps at edges.
+    const s=viewport.scale*viewport.dpr;
+    ctx.setTransform(s,0,0,s,-viewport.cameraX*s,-viewport.cameraY*s);
+    drawWorld(now);
+    drawLighting(now);
+    drawHUDEffects(now);
   }
   function buildBackgroundLayer(w){
     const layer=document.createElement('canvas'); layer.width=W; layer.height=H;

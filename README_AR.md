@@ -1,11 +1,8 @@
-# SILENT RAID — نسخة Android
+# Silent Raid — PHONE MASTER V6
 
-هذا المشروع يغلف نسخة HTML/CSS/JavaScript الأصلية داخل WebView لتعمل كتطبيق Android.
-
-## بناء APK
-
-يمكن فتح المشروع في Android Studio ثم اختيار Build > Build APK(s).
-
-أو رفع المشروع إلى GitHub واستخدام ملف GitHub Actions الموجود في `.github/workflows/android.yml`.
-
-بعد نجاح البناء سيظهر APK في قسم Artifacts باسم `silent-raid-apk`.
+- Fullscreen Landscape.
+- World coordinates remain 800x600.
+- Uniform render scaling + clamped camera; no non-uniform stretching and no edge clipping.
+- Main menu/result UI resized for phone landscape.
+- WIN and LOSS use the same proportional treatment.
+- Original game audio, map, lighting, and gameplay logic preserved except render-camera layer.
