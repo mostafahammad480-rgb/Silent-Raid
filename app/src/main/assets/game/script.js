@@ -8,7 +8,7 @@
 
   // Fullscreen responsive renderer. Physics/world coordinates remain the original
   // 800x600 space. Only the final render gets a uniform scale and a clamped camera.
-  const GAME_RENDER_ZOOM = 1.08;
+  const GAME_RENDER_ZOOM = 1.16;
   const viewport = { width: W, height: H, dpr: 1, scale: 1, viewW: W, viewH: H, cameraX: 0, cameraY: 0 };
 
   function clampValue(v,min,max){ return Math.max(min, Math.min(max, v)); }
@@ -2208,48 +2208,7 @@
     selectLevel(Number(card.dataset.stage),Number(card.dataset.round),true);
   });
 
-  
-    // V10: robust pointer-based vertical scrolling for the level selector.
-    // Uses pointer capture + touch-action:none so Android WebView cannot steal the gesture.
-    const levelSelectScreen=document.getElementById('levelSelectScreen');
-    if(levelSelectScreen){
-      let dragPointerId=null;
-      let dragStartY=0;
-      let dragStartScroll=0;
-      let dragDistance=0;
-      let suppressLevelClickUntil=0;
-      levelSelectScreen.addEventListener('pointerdown',e=>{
-        if(gameState!=='LEVELS' || e.pointerType==='mouse' && e.button!==0)return;
-        dragPointerId=e.pointerId;
-        dragStartY=e.clientY;
-        dragStartScroll=levelSelectScreen.scrollTop;
-        dragDistance=0;
-        suppressLevelClickUntil=0;
-        try{ levelSelectScreen.setPointerCapture(e.pointerId); }catch(_){}
-      });
-      levelSelectScreen.addEventListener('pointermove',e=>{
-        if(e.pointerId!==dragPointerId)return;
-        const dy=e.clientY-dragStartY;
-        if(Math.abs(dy)>3) dragDistance=Math.abs(dy);
-        if(dragDistance>3){
-          levelSelectScreen.scrollTop=dragStartScroll-dy;
-          e.preventDefault();
-        }
-      },{passive:false});
-      const finishLevelDrag=e=>{
-        if(e.pointerId!==dragPointerId)return;
-        if(dragDistance>8) suppressLevelClickUntil=performance.now()+180;
-        try{ if(levelSelectScreen.hasPointerCapture(e.pointerId)) levelSelectScreen.releasePointerCapture(e.pointerId); }catch(_){}
-        dragPointerId=null;
-      };
-      levelSelectScreen.addEventListener('pointerup',finishLevelDrag);
-      levelSelectScreen.addEventListener('pointercancel',finishLevelDrag);
-      levelSelectScreen.addEventListener('click',e=>{
-        if(performance.now()<suppressLevelClickUntil){ e.preventDefault(); e.stopPropagation(); }
-      },true);
-    }
-
-let simAccumulator=0;
+  let simAccumulator=0;
   const FIXED_DT=1/60;
 
   function startGameRenderLoop(){

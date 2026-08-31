@@ -1,11 +1,10 @@
-# Silent Raid — PHONE MASTER V6
+# Silent Raid — PHONE MASTER V11
 
-- Fullscreen Landscape.
-- World coordinates remain 800x600.
-- Uniform render scaling + clamped camera; no non-uniform stretching and no edge clipping.
-- Main menu/result UI resized for phone landscape.
-- WIN and LOSS use the same proportional treatment.
-- Original game audio, map, lighting, and gameplay logic preserved except render-camera layer.
-
-
-إصدار V10: إصلاح تمرير شاشة الأدوار عبر Pointer Capture وتصغير متناسق للقائمة ونافذتي الفوز والخسارة.
+نسخة مبنية من V8 العاملة، مع تعديلات محددة فقط:
+- لوحة القائمة الرئيسية أصغر بكثير على الهاتف.
+- شاشة اختيار الأدوار أصبحت حاوية تمرير رأسية حقيقية، والمراحل الثلاث توضع عموديًا على الهاتف حتى يكون السحب ذا محتوى فعلي.
+- نافذتا الفوز والخسارة تستخدمان نفس الهندسة والحجم.
+- اللعب يبقى Full Screen.
+- تكبير العالم أثناء اللعب 1.16x فقط مع الكاميرا الأصلية ذات الحدود.
+- تكبير معتدل للـJoystick وأزرار اللعب.
+- لا تغيير في الصوت أو الإضاءة أو منطق اللعبة أو الخريطة، عدا معامل عرض العالم 1.16x.

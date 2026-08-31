@@ -713,41 +713,101 @@ h1,.panel-head h2{color:#d6bb83;text-shadow:0 2px 18px rgba(170,133,72,.22)}
 }
 
 
-/* ===== V10: final proportional UI + deterministic level scrolling ===== */
+/* ===== PHONE MASTER V11: ROOT-CAUSE UI SCALE + REAL LEVEL SCROLL =====
+   One coherent CSS scale for phone UI; the gameplay canvas remains fullscreen.
+   Level selection owns vertical scrolling itself instead of relying on a centered
+   grid/screen overflow combination that WebView can fail to drag. */
 @media (pointer:coarse) and (orientation:landscape){
-  /* Main-menu card: reduce only the panel; preserve its internal proportions. */
+  /* Main menu: reduce the command panel to roughly half the previous width. */
   .heist-menu .heist-menu-panel{
-    width:min(820px,72vw)!important;
+    width:min(600px,50vw)!important;
     padding:12px 14px 10px!important;
-    bottom:3.2%!important;
+    bottom:3%!important;
+    border-radius:16px!important;
   }
-  .heist-menu .heist-primary{min-height:45px!important;padding:10px 12px!important;}
-  .heist-menu .heist-secondary{min-height:39px!important;padding:9px 11px!important;}
-  .heist-menu .menu-tip{font-size:8.5px!important;margin-top:6px!important;}
-  .heist-menu .menu-credit{font-size:9.5px!important;margin-top:5px!important;}
+  .heist-menu .heist-primary{padding:10px 12px!important;min-height:44px!important;font-size:clamp(.78rem,1.35vw,.98rem)!important;}
+  .heist-menu .heist-secondary{padding:8px 10px!important;min-height:38px!important;font-size:clamp(.70rem,1.15vw,.88rem)!important;}
+  .heist-menu .menu-tip{font-size:8px!important;margin-top:5px!important;}
+  .heist-menu .menu-credit{font-size:9px!important;margin-top:5px!important;}
 
-  /* Victory + Game Over: identical, smaller geometry. */
+  /* Level picker: the screen itself is the scroll viewport. Do not center it. */
+  .level-select-screen{
+    display:block!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+    -webkit-overflow-scrolling:touch!important;
+    overscroll-behavior-y:contain!important;
+    touch-action:pan-y!important;
+    padding:16px 12px 40px!important;
+  }
+  .level-select-shell{
+    width:min(1180px,96vw)!important;
+    max-width:none!important;
+    max-height:none!important;
+    min-height:max-content!important;
+    height:auto!important;
+    margin:0 auto!important;
+  }
+  .level-select-grid{
+    grid-template-columns:1fr!important;
+    min-height:max-content!important;
+    padding-bottom:10px!important;
+  }
+
+  /* Results: same geometry for success and failure, smaller and fully visible. */
+  .result-screen{
+    display:grid!important;
+    place-items:center!important;
+    overflow:hidden!important;
+    padding:24px!important;
+  }
   .result-screen .result-panel{
-    width:min(760px,58vw)!important;
-    padding:22px 26px 20px!important;
+    width:min(720px,46vw)!important;
+    max-width:720px!important;
+    max-height:78vh!important;
+    overflow:auto!important;
+    padding:24px 28px 22px!important;
     border-radius:20px!important;
   }
-  .result-screen .result-glyph{width:60px!important;height:60px!important;margin-bottom:9px!important;}
+  .result-screen .result-glyph,
   .result-screen .money-bag-glyph svg,
-  .result-screen .prison-glyph svg{width:60px!important;height:60px!important;}
-  .result-screen .result-panel h2{font-size:clamp(1.5rem,3.6vw,2.2rem)!important;}
-  .result-screen .result-panel p{font-size:clamp(.82rem,1.55vw,1rem)!important;margin:9px 0 18px!important;}
-  .result-screen .result-actions{gap:9px!important;}
-  .result-screen .result-actions .primary-btn,
-  .result-screen .result-actions .secondary-btn{min-height:44px!important;padding:10px 12px!important;}
-
-  /* Level selector: browser must not take over the vertical gesture. */
-  .level-select-screen{
-    overflow-y:auto!important;
-    overflow-x:hidden!important;
-    touch-action:none!important;
-    overscroll-behavior:contain!important;
-    -webkit-overflow-scrolling:auto!important;
+  .result-screen .prison-glyph svg{
+    width:64px!important;height:64px!important;
   }
-  .level-select-screen .level-select-shell{min-height:max-content!important;}
+  .result-screen .result-glyph{margin-bottom:10px!important;}
+  .result-screen .result-panel h2{font-size:clamp(1.45rem,3.4vw,2rem)!important;}
+  .result-screen .result-panel p{font-size:clamp(.78rem,1.3vw,.95rem)!important;margin:8px 0 18px!important;}
+  .result-screen .result-actions{grid-template-columns:1fr 1fr!important;gap:8px!important;}
+  .result-screen .result-actions .primary-btn,
+  .result-screen .result-actions .secondary-btn{min-height:44px!important;padding:9px 10px!important;font-size:clamp(.75rem,1.2vw,.9rem)!important;}
+
+  /* Gameplay: keep the entire app fullscreen; enlarge world/characters by a
+     single controlled render factor, without changing their logical sizes. */
+  #gameScreen,#gameScreen .game-wrap,#gameScreen #gameCanvas{
+    width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;
+  }
+  #gameScreen .game-wrap{
+    position:absolute!important;inset:0!important;aspect-ratio:auto!important;
+    border:0!important;border-radius:0!important;box-shadow:none!important;overflow:hidden!important;
+  }
+  #gameScreen #gameCanvas{object-fit:fill!important;}
+  #gameScreen .corner-tools{
+    left:10px!important;bottom:10px!important;
+    transform:none!important;
+  }
+  #gameScreen .tool-btn{min-height:48px!important;padding:10px 15px!important;font-size:.9rem!important;}
+  #gameScreen .joystick{
+    right:18px!important;bottom:18px!important;
+    width:142px!important;height:142px!important;
+    transform:none!important;
+  }
+  #gameScreen .joystick::after{inset:22px!important;}
+  #gameScreen .joystick #joystickKnob{width:56px!important;height:56px!important;}
+}
+
+/* Narrow landscape phones: keep the same system but avoid oversized panels. */
+@media (pointer:coarse) and (orientation:landscape) and (max-height:520px){
+  .heist-menu .heist-menu-panel{width:min(560px,50vw)!important;padding:10px 12px 8px!important;}
+  .level-select-screen{padding-top:10px!important;padding-bottom:30px!important;}
+  .result-screen .result-panel{width:min(680px,52vw)!important;max-height:82vh!important;padding:18px 22px 16px!important;}
 }
