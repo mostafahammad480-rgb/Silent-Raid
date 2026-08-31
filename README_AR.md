@@ -1,9 +1,11 @@
-# Silent Raid — Phone Recovered V3
+# SILENT RAID — نسخة Android
 
-هذه النسخة مبنية من SilentRaidAndroid_PHONE_SAFE_FINAL، وهي نسخة Android التي كانت تعمل، وليس من BALANCED_V2.
+هذا المشروع يغلف نسخة HTML/CSS/JavaScript الأصلية داخل WebView لتعمل كتطبيق Android.
 
-تم إلغاء تغييرات JavaScript والكاميرا التي أدخلت عطل فتح اللعبة في النسخة السابقة.
+## بناء APK
 
-التعديل الإضافي الوحيد هو تصغير نافذتي النجاح والخسارة على الشاشات اللمسية مع الحفاظ على نفس النسب.
+يمكن فتح المشروع في Android Studio ثم اختيار Build > Build APK(s).
 
-ملفات اللعبة الأساسية والصوت والخريطة والإضاءة لم تتغير.
+أو رفع المشروع إلى GitHub واستخدام ملف GitHub Actions الموجود في `.github/workflows/android.yml`.
+
+بعد نجاح البناء سيظهر APK في قسم Artifacts باسم `silent-raid-apk`.

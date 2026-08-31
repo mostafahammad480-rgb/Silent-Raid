@@ -650,31 +650,3 @@ h1,.panel-head h2{color:#d6bb83;text-shadow:0 2px 18px rgba(170,133,72,.22)}
 @media (max-width:600px){.heist-menu .menu-actor{width:220px!important}.level-select-screen .stage-avatars{min-width:190px;height:100px}.level-select-screen .stage-avatar{width:90px!important;height:90px!important;flex-basis:90px;}.level-select-screen .stage-avatar + .stage-avatar{margin-inline-start:-24px;}}
 
 .round-card.locked{opacity:.48;filter:saturate(.45);cursor:not-allowed;background:linear-gradient(180deg,#14191d,#0a0e11)!important;border-color:rgba(255,255,255,.06)!important;box-shadow:none!important;transform:none!important}.round-card.locked:hover,.round-card.locked:active{transform:none!important;box-shadow:none!important;border-color:rgba(255,255,255,.06)!important}.round-lock{position:absolute;top:7px;right:8px;font-size:14px;line-height:1;opacity:.9;pointer-events:none}.round-card:not(.locked) .round-lock{display:none}.round-card.locked .round-open{background:rgba(255,255,255,.04);color:#7c858b;border-color:rgba(255,255,255,.07)}
-
-/* V3 RECOVERY: keep both result dialogs compact and symmetric on phone screens. */
-@media (pointer: coarse){
-  .result-panel{
-    width:min(460px,76vw);
-    padding:28px 26px;
-    border-radius:20px;
-  }
-  .result-glyph{width:60px;height:60px;margin-bottom:12px}
-  .money-bag-glyph svg,.prison-glyph svg{width:58px;height:58px}
-  .result-panel h2{font-size:clamp(1.45rem,3.5vw,2rem)}
-  .result-panel p{font-size:clamp(.8rem,1.9vw,.96rem);margin:9px 0 18px}
-  .result-actions{gap:9px}
-  .result-actions .primary-btn,
-  .result-actions .secondary-btn{
-    min-height:44px;
-    padding:9px 12px;
-    font-size:clamp(.82rem,1.9vw,.96rem)
-  }
-}
-@media (pointer:coarse) and (max-height:520px){
-  .result-panel{width:min(430px,72vw);padding:20px 22px}
-  .result-glyph{width:54px;height:54px;margin-bottom:8px}
-  .money-bag-glyph svg,.prison-glyph svg{width:52px;height:52px}
-  .result-panel p{margin:7px 0 14px}
-  .result-actions .primary-btn,
-  .result-actions .secondary-btn{min-height:40px;padding:7px 10px}
-}
