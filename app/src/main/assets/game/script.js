@@ -2,70 +2,12 @@
   'use strict';
 
   const canvas = document.getElementById('gameCanvas');
-  // The game world keeps the original 600px logical height, but its logical width
-  // expands with the device aspect ratio. This fills the entire gameplay screen
-  // without stretching circles/sprites or cropping the map edges.
-  const BASE_GAME_H = 600;
-  let W = 800, H = BASE_GAME_H;
-  let viewportScale = 1;
-  const RENDER_SCALE = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
-  function sizeGameplayViewport(){
-    const vw = Math.max(320, Math.round(window.innerWidth || 800));
-    const vh = Math.max(240, Math.round(window.innerHeight || 600));
-    viewportScale = vh / BASE_GAME_H;
-    // Keep the logical height fixed and expand the logical width to the real
-    // screen ratio. World units therefore keep the same physical scale as the
-    // original 800x600 game while a 16:9 phone simply shows more horizontal map.
-    W = Math.max(800, Math.round(vw / viewportScale));
-    H = BASE_GAME_H;
-    canvas.width = Math.max(1, Math.round(vw * RENDER_SCALE));
-    canvas.height = Math.max(1, Math.round(vh * RENDER_SCALE));
-    canvas.style.width = vw + 'px';
-    canvas.style.height = vh + 'px';
-    // Keep touch controls and HUD proportional to the game's original 800x600 design.
-    // The gameplay canvas may occupy the full phone viewport, but UI controls scale by
-    // the same vertical factor instead of becoming physically oversized on high-DPI phones.
-    const uiScale = Math.max(0.58, Math.min(1, viewportScale));
-    document.documentElement.style.setProperty('--game-ui-scale', uiScale.toFixed(4));
-    ctxReady = false;
-  }
-  // Mild gameplay camera zoom: makes the thief, guards and map details easier to read
-  // without changing collision coordinates or the logical map generation.
-  const GAMEPLAY_ZOOM = 1.08;
-  let cameraX = 400, cameraY = 300;
-
-  let ctxReady = true;
-  sizeGameplayViewport();
+  const W = 800, H = 600;
+  const RENDER_SCALE = 2;
+  canvas.width = W * RENDER_SCALE;
+  canvas.height = H * RENDER_SCALE;
   const ctx = canvas.getContext('2d', { alpha: false });
   ctx.imageSmoothingEnabled = true;
-  function applyViewportTransform(){
-    const zoom = GAMEPLAY_ZOOM;
-    const viewW = (window.innerWidth || 800) / viewportScale / zoom;
-    const viewH = (window.innerHeight || 600) / viewportScale / zoom;
-    const p = world?.player;
-    const targetX = Number.isFinite(p?.x) ? p.x : W / 2;
-    const targetY = Number.isFinite(p?.y) ? p.y : H / 2;
-    const halfW = viewW / 2, halfH = viewH / 2;
-    cameraX = Math.max(halfW, Math.min(W - halfW, targetX));
-    cameraY = Math.max(halfH, Math.min(H - halfH, targetY));
-    if (W < viewW) cameraX = W / 2;
-    if (H < viewH) cameraY = H / 2;
-    ctx.setTransform(
-      RENDER_SCALE * viewportScale * zoom, 0, 0,
-      RENDER_SCALE * viewportScale * zoom,
-      RENDER_SCALE * viewportScale * zoom * (viewW / 2 - cameraX),
-      RENDER_SCALE * viewportScale * zoom * (viewH / 2 - cameraY)
-    );
-  }
-  window.addEventListener('resize', () => {
-    const oldW = W, oldH = H;
-    sizeGameplayViewport();
-    applyViewportTransform();
-    // Resize invalidates the prerendered background. The simulation coordinates
-    // remain untouched; the next frame regenerates only the visual layer.
-    if (world) world.backgroundCanvas = null;
-    if (Math.abs(W - oldW) > 4 || oldH !== H) renderMenuActorsOnce?.();
-  }, {passive:true});
 
   const screens = {
     MENU: document.getElementById('menuScreen'),
@@ -1216,11 +1158,7 @@
 
   function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
   function draw(now){
-    applyViewportTransform();
-    ctx.fillStyle='#000';
-    const viewW=(window.innerWidth||800)/viewportScale;
-    const viewH=(window.innerHeight||600)/viewportScale;
-    ctx.fillRect(cameraX-viewW/2,cameraY-viewH/2,viewW,viewH);
+    ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
     if(gameState!=='PLAYING'||!world||!isMapFullyLoaded)return;
     drawWorld(now); drawLighting(now); drawHUDEffects(now);
   }
