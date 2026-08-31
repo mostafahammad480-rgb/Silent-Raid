@@ -1,11 +1,12 @@
-# SILENT RAID — نسخة Android
+# Silent Raid — Android Fullscreen Fixed
 
-هذا المشروع يغلف نسخة HTML/CSS/JavaScript الأصلية داخل WebView لتعمل كتطبيق Android.
+هذه الحزمة مبنية من النسخة الأصلية مع تعديلات Android فقط لمعالجة:
 
-## بناء APK
+- Landscape + Fullscreen/Immersive.
+- الحفاظ على مساحة اللعبة الأصلية 800×600 بنسبة 4:3 داخل شاشة الهاتف بدون قص.
+- الحفاظ على ملفات الصوت ونظام WebView الأصلي الذي كان يعمل.
+- أيقونة التطبيق موجودة.
 
-يمكن فتح المشروع في Android Studio ثم اختيار Build > Build APK(s).
+لا تغيّر ملفات `app/src/main/assets/game/index.html` أو `style.css` أو `script.js` يدويًا قبل الاختبار.
 
-أو رفع المشروع إلى GitHub واستخدام ملف GitHub Actions الموجود في `.github/workflows/android.yml`.
-
-بعد نجاح البناء سيظهر APK في قسم Artifacts باسم `silent-raid-apk`.
+البناء يتم من GitHub Actions عبر `.github/workflows/build-apk.yml`.

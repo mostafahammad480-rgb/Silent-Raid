@@ -650,3 +650,55 @@ h1,.panel-head h2{color:#d6bb83;text-shadow:0 2px 18px rgba(170,133,72,.22)}
 @media (max-width:600px){.heist-menu .menu-actor{width:220px!important}.level-select-screen .stage-avatars{min-width:190px;height:100px}.level-select-screen .stage-avatar{width:90px!important;height:90px!important;flex-basis:90px;}.level-select-screen .stage-avatar + .stage-avatar{margin-inline-start:-24px;}}
 
 .round-card.locked{opacity:.48;filter:saturate(.45);cursor:not-allowed;background:linear-gradient(180deg,#14191d,#0a0e11)!important;border-color:rgba(255,255,255,.06)!important;box-shadow:none!important;transform:none!important}.round-card.locked:hover,.round-card.locked:active{transform:none!important;box-shadow:none!important;border-color:rgba(255,255,255,.06)!important}.round-lock{position:absolute;top:7px;right:8px;font-size:14px;line-height:1;opacity:.9;pointer-events:none}.round-card:not(.locked) .round-lock{display:none}.round-card.locked .round-open{background:rgba(255,255,255,.04);color:#7c858b;border-color:rgba(255,255,255,.07)}
+
+/* ===== PHONE/DESKTOP VIEWPORT: FULLSCREEN STAGE WITHOUT CROPPING =====
+   The game remains logically 800x600 (4:3). The app/browser viewport fills
+   the screen, while the complete game stage is contained inside it. This
+   avoids the V41 cover crop that hid the right/left edges on 16:9 phones. */
+#gameScreen {
+  width: 100vw !important;
+  height: 100vh !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: grid !important;
+  place-items: center !important;
+  position: relative !important;
+  background: #111211 !important;
+}
+
+#gameScreen .game-wrap {
+  position: relative !important;
+  inset: auto !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  max-height: none !important;
+  aspect-ratio: auto !important;
+  overflow: hidden !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: #111211 !important;
+}
+
+#gameScreen #gameCanvas {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  display: block !important;
+  background: #24272b !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  transform: none !important;
+}
+
+/* The game canvas already uses the correct logical 4:3 viewport. Keep the
+   surrounding full-screen area filled without ever cropping that viewport. */
+#gameScreen::before,
+#gameScreen::after {
+  pointer-events: none !important;
+}
