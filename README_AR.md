@@ -2,10 +2,10 @@
 
 هذا المشروع يغلف نسخة HTML/CSS/JavaScript الأصلية داخل WebView لتعمل كتطبيق Android.
 
-## البناء
+## بناء APK
 
-استخدم workflow: `.github/workflows/build-apk.yml`.
+يمكن فتح المشروع في Android Studio ثم اختيار Build > Build APK(s).
 
-شغّله يدويًا من GitHub Actions وأدخل tag مثل `v1.0.0`. workflow يبني APK، يحفظ نسخة Artifact، ثم ينشر APK وملف SHA-256 في GitHub Release.
+أو رفع المشروع إلى GitHub واستخدام ملف GitHub Actions الموجود في `.github/workflows/android.yml`.
 
-للتجربة الشخصية يكفي APK الـdebug. للتوزيع النهائي استخدم مفتاح Release خاصًا تملكه أنت.
+بعد نجاح البناء سيظهر APK في قسم Artifacts باسم `silent-raid-apk`.
