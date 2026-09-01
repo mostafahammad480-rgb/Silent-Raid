@@ -1010,3 +1010,60 @@ body.gameplay-fullscreen #gameScreen #gameCanvas {
   .music-toggle{font-size:10px;min-height:34px;padding:7px 10px}
   .heist-menu .heist-menu-panel{width:min(520px,42vw)!important}
 }
+
+/* ===== V19: TRUE GAMEPLAY FULLSCREEN + VIEWPORT-SAFE EDGES =====
+/* Only active during PLAYING. Menu, level select, victory and failure are untouched. */
+body.gameplay-fullscreen{
+  display:block!important;
+  width:100%;height:100%;
+  margin:0!important;padding:0!important;
+  overflow:hidden!important;
+}
+body.gameplay-fullscreen #app{
+  position:fixed!important;
+  inset:0!important;
+  width:100dvw!important;
+  height:100dvh!important;
+  max-width:none!important;
+  max-height:none!important;
+  margin:0!important;
+  overflow:hidden!important;
+}
+body.gameplay-fullscreen #gameScreen{
+  position:fixed!important;
+  inset:0!important;
+  width:100dvw!important;
+  height:100dvh!important;
+  max-width:none!important;
+  max-height:none!important;
+  margin:0!important;
+  padding:0!important;
+  display:block!important;
+  overflow:hidden!important;
+  z-index:100!important;
+}
+body.gameplay-fullscreen #gameScreen .game-wrap{
+  position:absolute!important;
+  inset:0!important;
+  width:100dvw!important;
+  height:100dvh!important;
+  max-width:none!important;
+  max-height:none!important;
+  min-width:0!important;
+  min-height:0!important;
+  aspect-ratio:auto!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  overflow:hidden!important;
+}
+body.gameplay-fullscreen #gameScreen #gameCanvas{
+  position:absolute!important;
+  inset:0!important;
+  width:100%!important;
+  height:100%!important;
+  max-width:none!important;
+  max-height:none!important;
+  object-fit:fill!important;
+  display:block!important;
+}
