@@ -6,6 +6,9 @@
   // device's real aspect ratio before each new round, so the render stays
   // uniformly scaled while the maze itself becomes genuinely widescreen.
   const BASE_W = 800, H = 600;
+  const ROUND_CHARACTER_SCALE = 1.32;
+  const CORRIDOR_WIDEN_RATIO = 0.35;
+  const WALL_INSET_RATIO = CORRIDOR_WIDEN_RATIO / 2;
   let W = BASE_W;
   const ctx = canvas.getContext('2d', { alpha: false });
   ctx.imageSmoothingEnabled = true;
@@ -113,7 +116,7 @@
       }else{
         if(audio?.ac && music.finalGain){
           music.finalGain.gain.cancelScheduledValues(audio.ac.currentTime);
-          music.finalGain.gain.setTargetAtTime(.08,audio.ac.currentTime,.05);
+          music.finalGain.gain.setTargetAtTime(GAMEPLAY_LOCAL_MUSIC_GAIN,audio.ac.currentTime,.05);
         }
         if(gameState==='MENU' || gameState==='LEVELS'){ titleMusicGestureUnlocked=true; fadeMainTitleIn(false); }
         else if(gameState==='PLAYING'){ setMainTitleGameplayVolume(); }
@@ -212,7 +215,7 @@
     else { fadeMainTitleOut(); }
   }
 
-  function resetInput() { input.x = 0; input.y = 0; input.keys.clear(); input.joystickActive = false; }
+  function resetInput() { input.x = 0; input.y = 0; input.keys.clear(); input.joystickActive = false; smoothInputX = 0; smoothInputY = 0; }
 
   class RNG {
     constructor(seed) { this.s = seed >>> 0; }
@@ -228,7 +231,7 @@
   function buildMaze(seed) {
     const rng = new RNG(seed);
     const d = DIFF[level.level];
-    // Passage width: each navigable cell is deliberately ~1.5x the old physical width.
+    // Passage width is widened visually/physically by 30% relative to the original grid, preserving matched wall/collision geometry.
     // The grid topology stays unchanged so pathfinding remains stable.
     const cell = level.level <= 2 ? 38 : level.level <= 4 ? 34 : 30;
     const cols = Math.floor((W - 22) / cell), rows = Math.floor((H - 66) / cell);
@@ -592,7 +595,7 @@
       c.clearRect(0,0,size,size); c.save(); c.translate(size/2,type==='thief'?size*.70:size*.68); c.scale(scale,scale);
       if(type==='thief'){
         const p={x:0,y:0,vx:0,vy:0,r:9,lastDir:{x:1,y:-.04},wobble:0};
-        drawPlayerVisual(c,p,0,false,false);
+        drawPlayerVisual(c,p,0,false,false,true);
       }else{
         const g={x:0,y:0,vx:0,vy:0,radius:8,faceDir:{x:-1,y:-.04},state:'PATROL',pulse:0};
         drawGuardVisual(c,g,true);
@@ -643,12 +646,37 @@
     }
   }
 
+  function wallRectForCell(gx,gy){
+    if(!world || gy<0 || gx<0 || gy>=world.rows || gx>=world.cols || world.grid[gy][gx]!==1) return null;
+    const c=world.cell, x=world.ox+gx*c, y=world.oy+gy*c, inset=c*WALL_INSET_RATIO;
+    // Inset only toward adjacent floor cells. This makes every bounded corridor
+    // ~10% wider while preserving the outer perimeter and visual wall continuity.
+    const l=(world.grid[gy]?.[gx-1]===0)?inset:0;
+    const r=(world.grid[gy]?.[gx+1]===0)?inset:0;
+    const t=(world.grid[gy-1]?.[gx]===0)?inset:0;
+    const b=(world.grid[gy+1]?.[gx]===0)?inset:0;
+    return {x:x+l,y:y+t,w:Math.max(1,c-l-r),h:Math.max(1,c-t-b)};
+  }
+
+  function circleHitsRect(cx,cy,r,rect){
+    const qx=Math.max(rect.x,Math.min(cx,rect.x+rect.w));
+    const qy=Math.max(rect.y,Math.min(cy,rect.y+rect.h));
+    const dx=cx-qx,dy=cy-qy;
+    return dx*dx+dy*dy < r*r;
+  }
+
   function canStandAt(x,y,r){
     if(!world) return false;
-    const minX=Math.floor((x-r-world.ox)/world.cell), maxX=Math.floor((x+r-world.ox)/world.cell);
-    const minY=Math.floor((y-r-world.oy)/world.cell), maxY=Math.floor((y+r-world.oy)/world.cell);
+    // Check only nearby wall cells against the same inset geometry used to render
+    // the walls. Collision therefore matches the widened passages visually.
+    const pad=r+world.cell;
+    const minX=Math.max(0,Math.floor((x-pad-world.ox)/world.cell));
+    const maxX=Math.min(world.cols-1,Math.floor((x+pad-world.ox)/world.cell));
+    const minY=Math.max(0,Math.floor((y-pad-world.oy)/world.cell));
+    const maxY=Math.min(world.rows-1,Math.floor((y+pad-world.oy)/world.cell));
     for(let gy=minY;gy<=maxY;gy++) for(let gx=minX;gx<=maxX;gx++){
-      if(!isFloor(gx,gy)) return false;
+      const rect=wallRectForCell(gx,gy);
+      if(rect && circleHitsRect(x,y,r,rect)) return false;
     }
     return true;
   }
@@ -664,10 +692,38 @@
   function canvasToGrid(x,y){return {x:Math.floor((x-world.ox)/world.cell),y:Math.floor((y-world.oy)/world.cell)}}
   function isFloor(gx,gy){return gx>=0&&gy>=0&&gx<world.cols&&gy<world.rows&&world.grid[gy][gx]===0}
 
-  function getMoveInput(){
+  // Analog steering is smoothed as a continuous signal.  A tiny dead-zone
+  // removes finger jitter, the response curve gives finer control near center,
+  // and a light low-pass keeps the direction from snapping between samples.
+  let smoothInputX=0, smoothInputY=0;
+  function getMoveInput(dt=1/60){
     let x=input.x,y=input.y;
-    if(!input.joystickActive){x=0;y=0; if(input.keys.has('a')||input.keys.has('arrowleft')) x-=1; if(input.keys.has('d')||input.keys.has('arrowright')) x+=1; if(input.keys.has('w')||input.keys.has('arrowup')) y-=1; if(input.keys.has('s')||input.keys.has('arrowdown')) y+=1;}
-    const m=Math.hypot(x,y); return m>0?{x:x/m,y:y/m,mag:Math.min(1,m)}:{x:0,y:0,mag:0};
+    if(!input.joystickActive){
+      x=0;y=0;
+      if(input.keys.has('a')||input.keys.has('arrowleft')) x-=1;
+      if(input.keys.has('d')||input.keys.has('arrowright')) x+=1;
+      if(input.keys.has('w')||input.keys.has('arrowup')) y-=1;
+      if(input.keys.has('s')||input.keys.has('arrowdown')) y+=1;
+    }
+    let m=Math.hypot(x,y);
+    if(m>1){x/=m;y/=m;m=1;}
+    const DEADZONE=input.joystickActive?0.07:0;
+    if(m<DEADZONE){x=0;y=0;m=0;}
+    else if(input.joystickActive){
+      const t=Math.min(1,Math.max(0,(m-DEADZONE)/(1-DEADZONE)));
+      // Smoothstep response: precise around center, full authority at edge.
+      const curved=t*t*(3-2*t);
+      const inv=m>0?1/m:0;
+      x*=curved*inv;y*=curved*inv;m=curved;
+    }
+    const response=input.joystickActive?18:30;
+    const a=1-Math.exp(-response*Math.max(0.001,Math.min(0.05,dt)));
+    smoothInputX += (x-smoothInputX)*a;
+    smoothInputY += (y-smoothInputY)*a;
+    const sm=Math.hypot(smoothInputX,smoothInputY);
+    if(sm>1){smoothInputX/=sm;smoothInputY/=sm;}
+    const smag=Math.min(1,Math.hypot(smoothInputX,smoothInputY));
+    return smag>0.001?{x:smoothInputX/smag,y:smoothInputY/smag,mag:smag}:{x:0,y:0,mag:0};
   }
 
   function update(dt,now){
@@ -676,7 +732,7 @@
 
     // Fixed-step simulation keeps timer, pickup and AI deterministic across refresh rates.
     try{
-      const mv=getMoveInput();
+      const mv=getMoveInput(dt);
       const running=mv.mag>.15;
       const maxSpeed=running?150:110;
       const accel=running?1000:750;
@@ -1325,13 +1381,16 @@
       for(let q=0;q<2;q++){const nx=fx+((tone*13+q*11)%Math.max(2,c-2))+1,ny=fy+((tone*5+q*7)%Math.max(2,c-2))+1;cctx.fillRect(nx,ny,1,1);}
     }
     for(let y=0;y<w.rows;y++) for(let x=0;x<w.cols;x++) if(w.grid[y][x]===1){
-      const wx=w.ox+x*c,wy=w.oy+y*c;
-      cctx.fillStyle='rgba(0,0,0,.26)';cctx.fillRect(wx+2,wy+3,c+2,c+2);
-      cctx.fillStyle='#eee9df';cctx.fillRect(wx,wy,c,c);
-      cctx.fillStyle='#d9cfbf';cctx.fillRect(wx+1,wy+c-5,c-2,4);
-      cctx.fillStyle='#f7f4ee';cctx.fillRect(wx+1,wy+1,c-2,3);
-      cctx.strokeStyle='rgba(86,102,113,.28)';cctx.lineWidth=1;cctx.strokeRect(wx+.5,wy+.5,c-1,c-1);
-      if(y===0||w.grid[y-1]?.[x]===0){cctx.fillStyle='rgba(188,147,74,.18)';cctx.fillRect(wx,wy,c,2);}
+      const wx=w.ox+x*c,wy=w.oy+y*c, inset=c*WALL_INSET_RATIO;
+      const l=(w.grid[y]?.[x-1]===0)?inset:0, r=(w.grid[y]?.[x+1]===0)?inset:0;
+      const t=(w.grid[y-1]?.[x]===0)?inset:0, b=(w.grid[y+1]?.[x]===0)?inset:0;
+      const rx=wx+l, ry=wy+t, rw=Math.max(1,c-l-r), rh=Math.max(1,c-t-b);
+      cctx.fillStyle='rgba(0,0,0,.26)';cctx.fillRect(rx+2,ry+3,rw+2,rh+2);
+      cctx.fillStyle='#eee9df';cctx.fillRect(rx,ry,rw,rh);
+      cctx.fillStyle='#d9cfbf';cctx.fillRect(rx+1,ry+rh-5,Math.max(1,rw-2),4);
+      cctx.fillStyle='#f7f4ee';cctx.fillRect(rx+1,ry+1,Math.max(1,rw-2),3);
+      cctx.strokeStyle='rgba(86,102,113,.28)';cctx.lineWidth=1;cctx.strokeRect(rx+.5,ry+.5,Math.max(1,rw-1),Math.max(1,rh-1));
+      if(t>0){cctx.fillStyle='rgba(188,147,74,.18)';cctx.fillRect(rx,ry,rw,2);}
     }
     // Bank teller counter / queue furniture.
     const hallX=w.ox+c*1.4, hallY=w.oy+c*(w.rows-3.0);
@@ -1501,9 +1560,9 @@
     drawPlayerVisual(ctx, world.player, now, ghostOverlay, !!world.vaultOpened);
   }
 
-  function drawPlayerVisual(target,p,now,ghostOverlay=false,hasLoot=false){
+  function drawPlayerVisual(target,p,now,ghostOverlay=false,hasLoot=false,menuStatic=false){
     const speed=Math.hypot(p.vx||0,p.vy||0), bob=(p.wobble||0)*Math.sin(now*.012)*.08, sx=1+bob, sy=1-bob;
-    target.save();target.translate(p.x,p.y);target.scale(sx,sy);target.globalAlpha=ghostOverlay?1:1;
+    target.save();target.translate(p.x,p.y);target.scale((menuStatic?1:ROUND_CHARACTER_SCALE)*sx,(menuStatic?1:ROUND_CHARACTER_SCALE)*sy);target.globalAlpha=ghostOverlay?1:1;
     target.fillStyle='rgba(0,0,0,.65)';target.beginPath();target.ellipse(0,18,15,5,0,0,Math.PI*2);target.fill();
     target.fillStyle='#111';target.beginPath();target.roundRect(-11,-1,22,24,6);target.fill();
     target.fillStyle='#1b1b1b';target.fillRect(-15,2,6,12);target.fillRect(9,2,6,12);
@@ -1551,6 +1610,7 @@
       target.restore();
     }
     target.globalAlpha=1;target.save();target.translate(g.x,g.y);
+    if(!menuStatic) target.scale(ROUND_CHARACTER_SCALE,ROUND_CHARACTER_SCALE);
     const fd=g.faceDir||{x:1,y:0}, dm=Math.hypot(fd.x,fd.y)||1,ux=fd.x/dm,uy=fd.y/dm,px=-uy,py=ux,rot=Math.atan2(uy,ux);
     target.fillStyle='rgba(0,0,0,.34)';target.beginPath();target.ellipse(0,18,15,5,0,0,Math.PI*2);target.fill();
     target.fillStyle='#1c2d3d';target.beginPath();target.roundRect(-13,-2,26,24,6);target.fill();
@@ -1572,7 +1632,7 @@
     target.fillStyle=chasing?'#e63b43':'#d8c5a2';target.beginPath();target.arc(11,-23,1.6,0,Math.PI*2);target.fill();target.restore();
   }
 
-  // V57: prerender exact in-game character drawings once. CSS transform animation then
+  // In-round character scale is 1.32x the original (10% prior increase + 20% additional increase). CSS transform animation then
   // runs on the compositor, so the menu no longer clears/redraws a large canvas every frame.
   let menuActorsReady=false, menuActorsResizeRaf=0;
   function renderMenuActorsOnce(){
@@ -1581,7 +1641,7 @@
     if(!thief||!guard)return;
     const dpr=Math.min(2,window.devicePixelRatio||1);
     const size=620;
-    const scale=5.15;
+    const scale=7.725;
     for(const [canvas,type] of [[thief,'thief'],[guard,'guard']]){
       canvas.width=Math.floor(size*dpr); canvas.height=Math.floor(size*dpr);
       canvas.style.width=size+'px'; canvas.style.height=size+'px';
@@ -1592,7 +1652,7 @@
       c.scale(scale,scale);
       if(type==='thief'){
         const p={x:0,y:0,vx:0,vy:0,r:9,lastDir:{x:1,y:-.04},wobble:0};
-        drawPlayerVisual(c,p,0,false,false);
+        drawPlayerVisual(c,p,0,false,false,true);
       }else{
         const g={x:0,y:0,vx:0,vy:0,radius:8,faceDir:{x:-1,y:-.04},state:'PATROL',pulse:0};
         drawGuardVisual(c,g,true);
@@ -1647,7 +1707,7 @@
     music.musicBus.gain.value=1;
 
     music.preGain=ac.createGain();
-    // Strong internal level so the final BGM cap of 8% is still plainly audible.
+    // Strong internal level so the final BGM cap of 6.4% is intentionally quieter for gameplay.
     music.preGain.gain.value=3.0;
 
     music.compressor=ac.createDynamicsCompressor();
@@ -1658,7 +1718,7 @@
     music.compressor.release.value=.14;
 
     music.finalGain=ac.createGain();
-    music.finalGain.gain.value=musicEnabled?0.08:0;
+    music.finalGain.gain.value=musicEnabled?GAMEPLAY_LOCAL_MUSIC_GAIN:0;
 
     music.analyser=ac.createAnalyser();
     music.analyser.fftSize=1024;
@@ -1756,9 +1816,15 @@
       if(!buildLiveMusic()) throw new Error('MUSIC_GRAPH_FAILED');
       if(music.finalGain){
         music.finalGain.gain.cancelScheduledValues(ac.currentTime);
-        music.finalGain.gain.setTargetAtTime(.08,ac.currentTime,.08);
+        music.finalGain.gain.setTargetAtTime(GAMEPLAY_LOCAL_MUSIC_GAIN,ac.currentTime,.08);
       }
       applyMusicMix(1,0);
+      try{ setMainTitleGameplayVolume(world?.anyChase ? CHASE_MUSIC_VOLUME : GAMEPLAY_MUSIC_VOLUME); }catch(_){}
+      if(music.finalGain){
+        const initialGain=world?.anyChase ? CHASE_LOCAL_MUSIC_GAIN : GAMEPLAY_LOCAL_MUSIC_GAIN;
+        music.finalGain.gain.setTargetAtTime(initialGain,ac.currentTime,.08);
+      }
+      music.lastChaseState=!!world?.anyChase;
       music.target=world?.anyChase?'chase':'ambient';
       music.lastPlayState='playing';
       setAudioStatusSafe('الصوت: موسيقى الخلفية تعمل');
@@ -1783,8 +1849,25 @@
   }
 
   function setMusicChase(chasing){
-    if(!music.started||!musicEnabled)return;
-    music.target=chasing?'chase':'ambient';
+    const next=!!chasing;
+    if(music.lastChaseState===next) return;
+    music.lastChaseState=next;
+    if(music.started&&musicEnabled) music.target=next?'chase':'ambient';
+
+    // The chase transition is intentionally perceptible: +25% while active,
+    // then a smooth return to the quieter baseline (-10% extra from the prior baseline).
+    try{
+      if(musicEnabled && gameState==='PLAYING') {
+        fadeMainTitleIn(false, next ? CHASE_MUSIC_VOLUME : GAMEPLAY_MUSIC_VOLUME);
+      }
+    }catch(_){}
+
+    if(music.finalGain&&audio?.ac&&musicEnabled){
+      const now=audio.ac.currentTime;
+      const target=next?CHASE_LOCAL_MUSIC_GAIN:GAMEPLAY_LOCAL_MUSIC_GAIN;
+      music.finalGain.gain.cancelScheduledValues(now);
+      music.finalGain.gain.setTargetAtTime(target,now,CHASE_MUSIC_SMOOTH);
+    }
   }
 
   function stopLocalMusic(){
@@ -1811,7 +1894,12 @@
   let mainTitleStartPositionApplied=false;
   const MAIN_TITLE_START=2;
   const MAIN_MENU_VOLUME=0.28;
-  const GAMEPLAY_MUSIC_VOLUME=0.30;
+  const GAMEPLAY_MUSIC_VOLUME=0.124416; // additional -10% gameplay title-music volume baseline
+  const GAMEPLAY_LOCAL_MUSIC_GAIN=0.041472; // additional -10% quieter gameplay live-music baseline
+  const CHASE_MUSIC_MULTIPLIER=1.25;
+  const CHASE_MUSIC_VOLUME=GAMEPLAY_MUSIC_VOLUME*CHASE_MUSIC_MULTIPLIER;
+  const CHASE_LOCAL_MUSIC_GAIN=GAMEPLAY_LOCAL_MUSIC_GAIN*CHASE_MUSIC_MULTIPLIER;
+  const CHASE_MUSIC_SMOOTH=0.55;
 
   function seekMainTitleToStart(){
     const mm=mainTitleMusic;
@@ -2044,9 +2132,10 @@
     try{
       if(audio?.ac?.state==='running' && music.finalGain){
         music.finalGain.gain.cancelScheduledValues(audio.ac.currentTime);
-        music.finalGain.gain.setTargetAtTime(musicEnabled ? .08 : 0,audio.ac.currentTime,.08);
+        music.finalGain.gain.setTargetAtTime(musicEnabled ? GAMEPLAY_LOCAL_MUSIC_GAIN : 0,audio.ac.currentTime,.08);
       }
-      if(musicEnabled && gameState==='PLAYING') setMainTitleGameplayVolume();
+      music.lastChaseState=false;
+      if(musicEnabled && gameState==='PLAYING') setMainTitleGameplayVolume(GAMEPLAY_MUSIC_VOLUME);
     }catch(_){}
   }
 
@@ -2328,7 +2417,7 @@
         audio.sfxBus.gain.setTargetAtTime(isMuted?0:1.0,now,.025);
         if(music.finalGain){
           music.finalGain.cancelScheduledValues(now);
-          music.finalGain.setTargetAtTime(isMuted?0:0.08,now,.025);
+          music.finalGain.setTargetAtTime(isMuted?0:GAMEPLAY_LOCAL_MUSIC_GAIN,now,.025);
         }
       }
       if(!isMuted){
