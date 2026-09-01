@@ -1,0 +1,113 @@
+````yaml
+name: Build and Test Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build APK
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4android.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run Android Emulator Tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: Pixel_6
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          disable-animations: true
+          script: |
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb shell am force-stop com.mostafa.silentraid
+            adb shell monkey -p com.mostafa.silentraid 1
+            sleep 10
+            adb shell dumpsys activity activities | grep -E "mResumedActivity|topResumedActivity" || true
+            adb shell screencap -p /sdcard/silentraid.png
+            adb pull /sdcard/silentraid.png ./silentraid-emulator.png
+
+      - name: Upload emulator screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: silentraid-emulator-test
+          path: silentraid-emulator.png
+:::
+
+### 3. اضغط
+
+**Commit changes → Commit directly to the `main` branch**
+
+ولا تغير أي شيء آخر.
+
+---
+
+## 4. شغّل الاختبار
+
+اذهب إلى:
+
+[Actions في Silent-Raid](https://github.com/mostafahammad480-rgb/Silent-Raid/actions?utm_source=chatgpt.com)
+
+ستجد:
+
+**Build and Test Android**
+
+اضغط عليه ثم:
+
+**Run workflow → Run workflow**
+
+وانتظر.
+
+### 5. ماذا سيحدث؟
+
+GitHub سيعمل الآتي تلقائيًا:
+
+**يبني APK → يشغل Android Emulator → يثبت اللعبة → يفتحها → ينتظر 10 ثوانٍ → يأخذ Screenshot → يرفعه كـ Artifact.**
+
+يعني **لن تحتاج تثبيت APK على هاتفك لكي نعرف هل التطبيق يفتح أصلًا أم لا.**
+
+إذا ظهرت علامة **✅ خضراء**، افتح الـRun وانزل إلى:
+
+**Artifacts**
+
+ستجد:
+
+```text
+silentraid-emulator-test
+````
+
+داخله Screenshot من اللعبة وهي تعمل على Android Emulator.
+
+إذا ظهرت علامة **❌ حمراء**، **لا تحمل أي APK**. انسخ لي فقط الخطأ الموجود في الـRun، وأنا أصلح المشكلة من هناك.
+
+### نقطة مهمة جدًا
+
+هذا الاختبار الأول **لا يختبر الـZoom بصريًا بشكل كامل بعد**؛ هو أولًا يمنع كارثة *"نزّلت APK وبعدها اكتشفت أنها لا تفتح"*. بعد أن ينجح، نضيف خطوة اختبار Screenshot للـGameplay نفسه ونفحص **Full Screen + الحواف + Zoom** قبل أن أعطيك APK جديدًا.
+
+هذا هو الطريق الصحيح الآن.
