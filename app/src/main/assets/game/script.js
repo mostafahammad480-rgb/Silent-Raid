@@ -2,29 +2,51 @@
   'use strict';
 
   const canvas = document.getElementById('gameCanvas');
-  const W = 800, H = 600;
+  // Base design height is kept fixed. The gameplay width is expanded to the
+  // device's real aspect ratio before each new round, so the render stays
+  // uniformly scaled while the maze itself becomes genuinely widescreen.
+  const BASE_W = 800, H = 600;
+  let W = BASE_W;
   const ctx = canvas.getContext('2d', { alpha: false });
   ctx.imageSmoothingEnabled = true;
 
-  // Fullscreen responsive renderer. Physics/world coordinates remain the original
-  // 800x600 space. The whole logical scene is mapped directly to the physical
-  // phone viewport, so 4:3 gameplay is never letterboxed and the top/bottom
-  // gameplay edges are never cropped away. Non-uniform display scaling is used
-  // intentionally to fill modern landscape phone screens edge-to-edge.
-  const viewport = { width: W, height: H, dpr: 1, scaleX: 1, scaleY: 1, cameraX: 0, cameraY: 0, viewW: W, viewH: H };
+  // Professional fullscreen renderer:
+  // - the physical canvas always covers the entire phone viewport
+  // - X/Y use one identical scale (never stretch)
+  // - the playable world width expands to the device aspect ratio before a round
+  // - the full logical height (including the top/bottom round edges) stays visible
+  const viewport = {
+    width: BASE_W, height: H, dpr: 1, scale: 1,
+    cameraX: 0, cameraY: 0, viewW: BASE_W, viewH: H
+  };
+
+  function getViewportSize(){
+    return {
+      width: Math.max(1, window.innerWidth || document.documentElement.clientWidth || BASE_W),
+      height: Math.max(1, window.innerHeight || document.documentElement.clientHeight || H)
+    };
+  }
+
+  function prepareLogicalGameplayWidth(){
+    const {width,height}=getViewportSize();
+    // Keep the original 4:3 layout on 4:3-or-narrower displays. On wider
+    // landscape displays, widen the actual generated world instead of stretching it.
+    W = Math.max(BASE_W, H * (width / Math.max(1,height)));
+  }
 
   function resizeGameSurface(){
-    const width = Math.max(1, window.innerWidth || document.documentElement.clientWidth || W);
-    const height = Math.max(1, window.innerHeight || document.documentElement.clientHeight || H);
+    const {width,height}=getViewportSize();
     const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
     viewport.width = width;
     viewport.height = height;
     viewport.dpr = dpr;
-    viewport.scaleX = width / W;
-    viewport.scaleY = height / H;
-    viewport.viewW = W;
+
+    // One uniform scale. For a generated widescreen world, width is designed to
+    // match this exact viewport aspect, so both dimensions are filled naturally.
+    viewport.scale = height / H;
+    viewport.viewW = width / viewport.scale;
     viewport.viewH = H;
-    viewport.cameraX = 0;
+    viewport.cameraX = Math.max(0, (W - viewport.viewW) * 0.5);
     viewport.cameraY = 0;
 
     canvas.width = Math.max(1, Math.round(width * dpr));
@@ -34,10 +56,9 @@
   }
 
   function updateCamera(){
-    // The full logical 800x600 world is always visible. No camera crop is
-    // needed in fullscreen mode, which guarantees that the upper and lower
-    // boundaries inside every round remain visible.
-    viewport.cameraX = 0;
+    // The world is generated at the device's widescreen logical width. No
+    // vertical camera movement is used, so the complete round height remains visible.
+    viewport.cameraX = Math.max(0, (W - viewport.viewW) * 0.5);
     viewport.cameraY = 0;
   }
 
@@ -584,6 +605,9 @@
     resultTransitioning=false;
     isGameOver=false;
     isMapFullyLoaded=false;
+    // Establish the logical world aspect BEFORE generating the maze. This is the
+    // key difference between a stretched 4:3 view and a true widescreen round.
+    prepareLogicalGameplayWidth();
     setState('PLAYING');
     buildLevel();
     try { setMainTitleGameplayVolume(); } catch (_) {}
@@ -1267,25 +1291,26 @@
   function draw(now){
     updateCamera();
 
-    // Fill the actual phone/desktop viewport first.
+    // The physical canvas is fullscreen, while the gameplay scene is rendered
+    // with exactly one scale factor on both axes. No image/object-fit stretching
+    // is used anywhere in the gameplay render path.
     ctx.setTransform(viewport.dpr,0,0,viewport.dpr,0,0);
-    ctx.fillStyle='#000';
+    ctx.fillStyle='#090a0c';
     ctx.fillRect(0,0,viewport.width,viewport.height);
 
     if(gameState!=='PLAYING'||!world||!isMapFullyLoaded)return;
 
-    // Map the complete 800x600 logical scene to the whole physical viewport.
-    // X and Y are scaled independently so the game is true edge-to-edge fullscreen
-    // without removing any top/bottom world content.
-    const sx=viewport.scaleX*viewport.dpr;
-    const sy=viewport.scaleY*viewport.dpr;
-    ctx.setTransform(sx,0,0,sy,-viewport.cameraX*sx,-viewport.cameraY*sy);
+    const s=viewport.scale;
+    const sx=s*viewport.dpr;
+    const tx=(-viewport.cameraX*s)*viewport.dpr;
+    const ty=(-viewport.cameraY*s)*viewport.dpr;
+    ctx.setTransform(sx,0,0,sx,tx,ty);
     drawWorld(now);
     drawLighting(now);
-    drawHUDEffects(now);
+    drawHUDEffects();
   }
   function buildBackgroundLayer(w){
-    const layer=document.createElement('canvas'); layer.width=W; layer.height=H;
+    const layer=document.createElement('canvas'); layer.width=Math.max(1,Math.ceil(W)); layer.height=H;
     const cctx=layer.getContext('2d'); const c=w.cell, bw=w.cols*c, bh=w.rows*c;
     cctx.fillStyle='#111417'; cctx.fillRect(0,0,W,H);
     const floorGrad=cctx.createLinearGradient(w.ox,w.oy,w.ox+bw,w.oy+bh);
