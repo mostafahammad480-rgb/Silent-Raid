@@ -7,11 +7,11 @@
   ctx.imageSmoothingEnabled = true;
 
   // Fullscreen responsive renderer. Physics/world coordinates remain the original
-  // 800x600 space. Only the final render gets a uniform scale and a clamped camera.
-  const GAME_RENDER_ZOOM = 1.08;
-  const viewport = { width: W, height: H, dpr: 1, scale: 1, viewW: W, viewH: H, cameraX: 0, cameraY: 0 };
-
-  function clampValue(v,min,max){ return Math.max(min, Math.min(max, v)); }
+  // 800x600 space. The whole logical scene is mapped directly to the physical
+  // phone viewport, so 4:3 gameplay is never letterboxed and the top/bottom
+  // gameplay edges are never cropped away. Non-uniform display scaling is used
+  // intentionally to fill modern landscape phone screens edge-to-edge.
+  const viewport = { width: W, height: H, dpr: 1, scaleX: 1, scaleY: 1, cameraX: 0, cameraY: 0, viewW: W, viewH: H };
 
   function resizeGameSurface(){
     const width = Math.max(1, window.innerWidth || document.documentElement.clientWidth || W);
@@ -20,60 +20,25 @@
     viewport.width = width;
     viewport.height = height;
     viewport.dpr = dpr;
+    viewport.scaleX = width / W;
+    viewport.scaleY = height / H;
+    viewport.viewW = W;
+    viewport.viewH = H;
+    viewport.cameraX = 0;
+    viewport.cameraY = 0;
 
-    // Gameplay-only zoom. Start from the requested 1.08x visual zoom, then
-    // cap it by the ACTUAL generated map bounds. This guarantees that the
-    // complete map remains inside the physical viewport: zoom never becomes
-    // a crop operation. The canvas itself still occupies 100% of the screen.
-    let requestedScale = (height / H) * GAME_RENDER_ZOOM;
-    if(world && Number.isFinite(world.cols) && Number.isFinite(world.rows) && Number.isFinite(world.cell)){
-      const mapWidth = Math.max(1, world.cols * world.cell);
-      const mapHeight = Math.max(1, world.rows * world.cell);
-      const fitScaleX = width / mapWidth;
-      const fitScaleY = height / mapHeight;
-      requestedScale = Math.min(requestedScale, fitScaleX, fitScaleY);
-    }
-    viewport.scale = Math.max(0.1, requestedScale);
-    viewport.viewW = width / viewport.scale;
-    viewport.viewH = height / viewport.scale;
     canvas.width = Math.max(1, Math.round(width * dpr));
     canvas.height = Math.max(1, Math.round(height * dpr));
     canvas.style.width = width + 'px';
     canvas.style.height = height + 'px';
-    updateCamera();
   }
 
   function updateCamera(){
-    if(!world || !world.player){
-      viewport.cameraX = (W - viewport.viewW) / 2;
-      viewport.cameraY = (H - viewport.viewH) / 2;
-      return;
-    }
-
-    // Clamp against the generated bank floor, not merely the outer 800×600
-    // canvas. When the viewport is large enough to contain the whole map,
-    // center that full map. When it is smaller, follow the player but never
-    // cross an actual map edge.
-    const mapLeft = Number.isFinite(world.ox) ? world.ox : 0;
-    const mapTop = Number.isFinite(world.oy) ? world.oy : 0;
-    const mapWidth = Number.isFinite(world.cols) && Number.isFinite(world.cell) ? world.cols * world.cell : W;
-    const mapHeight = Number.isFinite(world.rows) && Number.isFinite(world.cell) ? world.rows * world.cell : H;
-    const mapRight = mapLeft + mapWidth;
-    const mapBottom = mapTop + mapHeight;
-
-    const desiredX = world.player.x - viewport.viewW / 2;
-    const desiredY = world.player.y - viewport.viewH / 2;
-    const minX = mapRight - viewport.viewW;
-    const maxX = mapLeft;
-    const minY = mapBottom - viewport.viewH;
-    const maxY = mapTop;
-
-    viewport.cameraX = minX <= maxX
-      ? clampValue(desiredX, minX, maxX)
-      : (mapLeft + mapWidth / 2 - viewport.viewW / 2);
-    viewport.cameraY = minY <= maxY
-      ? clampValue(desiredY, minY, maxY)
-      : (mapTop + mapHeight / 2 - viewport.viewH / 2);
+    // The full logical 800x600 world is always visible. No camera crop is
+    // needed in fullscreen mode, which guarantees that the upper and lower
+    // boundaries inside every round remain visible.
+    viewport.cameraX = 0;
+    viewport.cameraY = 0;
   }
 
   window.addEventListener('resize', resizeGameSurface, {passive:true});
@@ -1309,11 +1274,12 @@
 
     if(gameState!=='PLAYING'||!world||!isMapFullyLoaded)return;
 
-    // Render the original logical world with one uniform scale. On wide phones the
-    // viewport becomes wider than the 800px world, so the complete world stays in
-    // view horizontally; vertically the camera follows the player and clamps at edges.
-    const s=viewport.scale*viewport.dpr;
-    ctx.setTransform(s,0,0,s,-viewport.cameraX*s,-viewport.cameraY*s);
+    // Map the complete 800x600 logical scene to the whole physical viewport.
+    // X and Y are scaled independently so the game is true edge-to-edge fullscreen
+    // without removing any top/bottom world content.
+    const sx=viewport.scaleX*viewport.dpr;
+    const sy=viewport.scaleY*viewport.dpr;
+    ctx.setTransform(sx,0,0,sy,-viewport.cameraX*sx,-viewport.cameraY*sy);
     drawWorld(now);
     drawLighting(now);
     drawHUDEffects(now);
