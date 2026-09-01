@@ -838,3 +838,37 @@ h1,.panel-head h2{color:#d6bb83;text-shadow:0 2px 18px rgba(170,133,72,.22)}
   #gameScreen .message-hud{padding:6px 10px!important;font-size:70%!important;max-width:70vw!important;overflow:hidden!important;text-overflow:ellipsis!important;}
   .result-screen .result-panel{width:min(680px,46vw)!important;padding:20px 22px 18px!important;max-height:78vh!important;}
 }
+
+
+/* V16: gameplay-only fullscreen. Menu, level select, victory and failure keep their existing layouts. */
+body.gameplay-fullscreen #gameScreen {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  z-index: 100 !important;
+  overflow: hidden !important;
+}
+body.gameplay-fullscreen #gameScreen .game-wrap {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  max-height: none !important;
+  aspect-ratio: auto !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  overflow: hidden !important;
+  box-shadow: none !important;
+}
+body.gameplay-fullscreen #gameScreen #gameCanvas {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: fill !important;
+  display: block !important;
+}

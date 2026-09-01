@@ -8,7 +8,7 @@
 
   // Fullscreen responsive renderer. Physics/world coordinates remain the original
   // 800x600 space. Only the final render gets a uniform scale and a clamped camera.
-  const GAME_RENDER_ZOOM = 1.16;
+  const GAME_RENDER_ZOOM = 1.18;
   const viewport = { width: W, height: H, dpr: 1, scale: 1, viewW: W, viewH: H, cameraX: 0, cameraY: 0 };
 
   function clampValue(v,min,max){ return Math.max(min, Math.min(max, v)); }
@@ -20,7 +20,10 @@
     viewport.width = width;
     viewport.height = height;
     viewport.dpr = dpr;
-    viewport.scale = Math.min(width / W, height / H) * GAME_RENDER_ZOOM;
+    // Gameplay-only zoom: scale from the viewport height so the phone uses the
+    // full landscape height while the camera exposes a larger world window.
+    // The camera is clamped to the logical 800×600 world, so map edges are never cropped.
+    viewport.scale = (height / H) * GAME_RENDER_ZOOM;
     viewport.viewW = width / viewport.scale;
     viewport.viewH = height / viewport.scale;
     canvas.width = Math.max(1, Math.round(width * dpr));
@@ -110,6 +113,7 @@
     if(next!=='SUCCESS' && next!=='FAILURE') stopResultRain();
     if(leavingResult) fadeResultMusicOut(()=>setGameplayMusicAfterResult());
     gameState = next;
+    document.body.classList.toggle('gameplay-fullscreen', next === 'PLAYING');
     // The game simulation/render loop is only needed while actually playing.
     // Keeping the 60fps loop alive on MENU/LEVELS was unnecessary main-thread work
     // and competed directly with the menu compositor animation.
