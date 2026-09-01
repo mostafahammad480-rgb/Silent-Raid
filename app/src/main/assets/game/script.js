@@ -14,11 +14,8 @@
   function clampValue(v,min,max){ return Math.max(min, Math.min(max, v)); }
 
   function resizeGameSurface(){
-    // Use the visual viewport when available: on modern mobile WebView this is
-    // the actual visible CSS-pixel area after fullscreen/system-bar changes.
-    const vv = window.visualViewport;
-    const width = Math.max(1, Math.round(vv?.width || window.innerWidth || document.documentElement.clientWidth || W));
-    const height = Math.max(1, Math.round(vv?.height || window.innerHeight || document.documentElement.clientHeight || H));
+    const width = Math.max(1, window.innerWidth || document.documentElement.clientWidth || W);
+    const height = Math.max(1, window.innerHeight || document.documentElement.clientHeight || H);
     const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
     viewport.width = width;
     viewport.height = height;
@@ -81,9 +78,6 @@
 
   window.addEventListener('resize', resizeGameSurface, {passive:true});
   window.addEventListener('orientationchange', () => setTimeout(resizeGameSurface, 160), {passive:true});
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', resizeGameSurface, {passive:true});
-  }
 
   const screens = {
     MENU: document.getElementById('menuScreen'),
