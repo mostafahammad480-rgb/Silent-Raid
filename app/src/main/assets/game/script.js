@@ -6,8 +6,14 @@
   // device's real aspect ratio before each new round, so the render stays
   // uniformly scaled while the maze itself becomes genuinely widescreen.
   const BASE_W = 800, H = 600;
+  // Camera height is reduced by 20% relative to the previous gameplay view.
+  // In this 2D top-down renderer, that is represented by a 1 / 0.80 = 1.25x
+  // visual zoom, with the camera following the player and clamping to the world.
+  const GAMEPLAY_CAMERA_ZOOM = 1.25;
   const ROUND_CHARACTER_SCALE = 1.32;
-  const CORRIDOR_WIDEN_RATIO = 0.35;
+  const CORRIDOR_WIDEN_RATIO = 0.42;
+  // Slight additional passage clearance so narrow one-cell corridors are a little easier to traverse.
+
   const WALL_INSET_RATIO = CORRIDOR_WIDEN_RATIO / 2;
   let W = BASE_W;
   const ctx = canvas.getContext('2d', { alpha: false });
@@ -44,13 +50,11 @@
     viewport.height = height;
     viewport.dpr = dpr;
 
-    // One uniform scale. For a generated widescreen world, width is designed to
-    // match this exact viewport aspect, so both dimensions are filled naturally.
-    viewport.scale = height / H;
+    // Uniform gameplay scale with the requested 20% reduction in camera height.
+    // The result is a closer top-down view without stretching the scene.
+    viewport.scale = (height / H) * GAMEPLAY_CAMERA_ZOOM;
     viewport.viewW = width / viewport.scale;
-    viewport.viewH = H;
-    viewport.cameraX = Math.max(0, (W - viewport.viewW) * 0.5);
-    viewport.cameraY = 0;
+    viewport.viewH = height / viewport.scale;
 
     canvas.width = Math.max(1, Math.round(width * dpr));
     canvas.height = Math.max(1, Math.round(height * dpr));
@@ -59,10 +63,13 @@
   }
 
   function updateCamera(){
-    // The world is generated at the device's widescreen logical width. No
-    // vertical camera movement is used, so the complete round height remains visible.
-    viewport.cameraX = Math.max(0, (W - viewport.viewW) * 0.5);
-    viewport.cameraY = 0;
+    // Follow the burglar so the closer camera remains centered during movement.
+    // Clamp the camera to the logical world to avoid exposing coordinates beyond it.
+    const p = world?.player;
+    const targetX = p ? p.x - viewport.viewW * 0.5 : (W - viewport.viewW) * 0.5;
+    const targetY = p ? p.y - viewport.viewH * 0.5 : (H - viewport.viewH) * 0.5;
+    viewport.cameraX = Math.max(0, Math.min(Math.max(0, W - viewport.viewW), targetX));
+    viewport.cameraY = Math.max(0, Math.min(Math.max(0, H - viewport.viewH), targetY));
   }
 
   window.addEventListener('resize', resizeGameSurface, {passive:true});
@@ -81,9 +88,9 @@
   let isGameOver = false;
   let isMuted = false;
   const MUSIC_PREF_KEY = 'silent_raid_music_enabled_v1';
-  const CONTROL_LAYOUT_KEY = 'silent_raid_control_layout_v1';
+  const CONTROL_LAYOUT_KEY = 'silent_raid_control_layout_v2';
   let musicEnabled = true;
-  let controlLayout = 'analog-right';
+  let controlLayout = 'analog-left';
   try {
     const savedMusic = localStorage.getItem(MUSIC_PREF_KEY);
     if(savedMusic !== null) musicEnabled = savedMusic !== '0';
@@ -146,7 +153,7 @@
 
   const input = { x: 0, y: 0, keys: new Set(), joystickActive: false };
   const level = { stage: 1, level: 1, turn: 1, totalLevels: 15 };
-  const UNLOCK_KEY = 'silent_raid_v60_unlocked_rounds_v1';
+  const UNLOCK_KEY = 'silent_raid_v62_unlocked_rounds_v1';
   const DEFAULT_UNLOCKED = 1;
   function getUnlockedTurn(){
     try{
@@ -537,12 +544,8 @@
     level.level=round;
     level.turn=((level.stage-1)*5)+level.level;
     renderLevelSelect();
-    if(startImmediately && round===1 && !hasSavedControlLayout()){
-      pendingRoundStart={stage,round};
-      document.getElementById('controlSetupPanel')?.classList.remove('hidden');
-      applyControlLayout(controlLayout);
-      return;
-    }
+    // The default layout is analog-left. Players can change it later from Settings.
+    // Do not interrupt the first round with a setup popup.
     if(startImmediately) startRaid();
   }
 
@@ -1314,7 +1317,7 @@
   }
   function checkFailureAndSuccess(){
     if(world.lockdown){fail('انتهى الوقت — تم تفعيل الإغلاق الأحمر');return;}
-    if(world.escapeArmed&&dist(world.player,world.escape)<20){succeed();}
+    if(world.escapeArmed&&dist(world.player,world.escape)<18){succeed();}
   }
   function fail(msg){
     if(!isMapFullyLoaded||isGameOver)return;
@@ -1329,6 +1332,10 @@
     if(!isMapFullyLoaded||isGameOver)return;
     stopResultMusicNow();
     isGameOver=true;
+    // Start the escape-door animation at the exact same moment as the existing
+    // door-opening sound. The animation duration matches that recording.
+    world.escapeDoorAnimStart=performance.now()/1000;
+    // The money-win SFX is immediate on escape success (original timing).
     playSfx('success');
     playSfx('escape');
     try{
@@ -1336,11 +1343,15 @@
         music.finalGain.gain.cancelScheduledValues(audio.ac.currentTime);
         music.finalGain.gain.setTargetAtTime(0,audio.ac.currentTime,.70);
       }
-    }catch(_){}
+    }catch(_){ }
     markRoundCompleted(level.stage,level.level);
-    setState('SUCCESS');
-    startResultRain('money');
-    fadeResultMusicIn();
+    // Keep the success SFX aligned with the result transition.
+    setTimeout(()=>{
+      if(!isGameOver)return;
+      setState('SUCCESS');
+      startResultRain('money');
+      fadeResultMusicIn();
+    },1000);
   }
 
   function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
@@ -1464,12 +1475,110 @@
   }
 
   function drawEscape(){
-    const e=world.escape;ctx.save();ctx.translate(e.x,e.y);
-    ctx.fillStyle='#eee9df';ctx.strokeStyle=world.escapeArmed?'#356d43':'#5b574f';ctx.lineWidth=2;ctx.fillRect(-16,-24,32,48);ctx.strokeRect(-16,-24,32,48);
-    ctx.fillStyle='#4f6d86';ctx.fillRect(-8,-15,16,30);ctx.fillStyle='#f6f0e4';ctx.fillRect(-2,0,6,2);
-    ctx.fillStyle=world.escapeArmed?'#2d7b46':'#9b9488';ctx.font='700 8px Cairo,sans-serif';ctx.textAlign='center';ctx.fillText('مخرج',0,-28);ctx.restore();
-  }
+    const e=world.escape;
+    ctx.save();
+    ctx.translate(e.x,e.y);
 
+    // Simple bank/elevator-style sliding exit: two reinforced-glass leaves
+    // slide outward from the center. The door remains fully closed until
+    // escape succeeds, then follows the existing door-opening SFX timing.
+    const animStart=world.escapeDoorAnimStart||0;
+    const openDur=1.032;
+    const progress=animStart?Math.max(0,Math.min(1,(performance.now()/1000-animStart)/openDur)):0;
+    const ease=progress*progress*(3-2*progress);
+
+    // Keep the exit 10% smaller than its original V28 presentation.
+    const scale=.90;
+    ctx.scale(scale,scale);
+
+    const outerW=58, outerH=65;
+    const frame=3;
+    const innerW=outerW-frame*2;
+    const innerH=outerH-frame*2;
+    const panelGap=1;
+    const panelW=(innerW-panelGap)/2;
+    const maxShift=panelW+2;
+
+    // Recess behind the doors so the exit reads as a real doorway, not a
+    // floating sprite. Dark interior remains visible as the glass panels move.
+    ctx.fillStyle='#111820';
+    ctx.fillRect(-innerW/2,-innerH/2,innerW,innerH);
+
+    // Thick dark bank/security frame.
+    ctx.fillStyle='#252b31';
+    ctx.strokeStyle='#0e1114';
+    ctx.lineWidth=1.6;
+    ctx.fillRect(-outerW/2,-outerH/2,outerW,outerH);
+    ctx.strokeRect(-outerW/2+0.8,-outerH/2+0.8,outerW-1.6,outerH-1.6);
+
+    // Steel trim.
+    ctx.fillStyle='#59636b';
+    ctx.fillRect(-innerW/2,-innerH/2,innerW,2.5);
+    ctx.fillRect(-innerW/2,innerH/2-2.5,innerW,2.5);
+    ctx.fillRect(-innerW/2,-innerH/2,2.5,innerH);
+    ctx.fillRect(innerW/2-2.5,-innerH/2,2.5,innerH);
+
+    const leftClosedX=-innerW/2;
+    const rightClosedX=panelGap/2;
+    const leftX=leftClosedX-maxShift*ease;
+    const rightX=rightClosedX+maxShift*ease;
+    const top=-innerH/2+1.5;
+    const panelH=innerH-3;
+
+    function drawGlassPanel(x,side){
+      // Steel edge around each sliding panel.
+      ctx.fillStyle='#3f4a52';
+      ctx.strokeStyle='#0e1317';
+      ctx.lineWidth=1.2;
+      ctx.fillRect(x,top,panelW,panelH);
+      ctx.strokeRect(x+0.6,top+0.6,panelW-1.2,panelH-1.2);
+
+      // Cool, slightly translucent reinforced glass.
+      ctx.fillStyle='rgba(154,177,190,.34)';
+      ctx.fillRect(x+2,top+2,panelW-4,panelH-4);
+
+      // Subtle vertical reinforcement and reflection streaks.
+      ctx.fillStyle='rgba(224,235,239,.18)';
+      ctx.fillRect(x+panelW*.22,top+2,1.2,panelH-4);
+      ctx.fillStyle='rgba(255,255,255,.20)';
+      ctx.beginPath();
+      ctx.moveTo(x+4,top+panelH*.18);
+      ctx.lineTo(x+panelW*.42,top+4);
+      ctx.lineTo(x+panelW*.42+2,top+4);
+      ctx.lineTo(x+7,top+panelH*.22);
+      ctx.closePath();
+      ctx.fill();
+
+      // Lower safety band.
+      ctx.fillStyle='rgba(30,39,45,.34)';
+      ctx.fillRect(x+2,top+panelH*.72,panelW-4,panelH*.22);
+
+      // Minimal center-side seam hardware (no handles): this keeps the door
+      // visually close to an automatic bank/elevator door.
+      const seamX=side==='left'?x+panelW-1.5:x+1.5;
+      ctx.fillStyle='#8b959b';
+      ctx.fillRect(seamX,top+panelH*.47,1.5,panelH*.10);
+    }
+
+    drawGlassPanel(leftX,'left');
+    drawGlassPanel(rightX,'right');
+
+    // Center seam visible when closed.
+    if(progress<0.02){
+      ctx.fillStyle='#13181c';
+      ctx.fillRect(-0.7,top+1,1.4,panelH-2);
+    }
+
+    // Floor threshold and small exit label.
+    ctx.fillStyle='#31383d';
+    ctx.fillRect(-innerW/2,innerH/2-2,innerW,2);
+    ctx.fillStyle=world.escapeArmed?'#4aa365':'#8b8f91';
+    ctx.font='700 7.2px Cairo,sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText('مخرج',0,-outerH/2-4);
+
+    ctx.restore();
+  }
   function drawHazards(){world.hazards.forEach(h=>{ctx.save();ctx.translate(h.x,h.y);ctx.rotate(-.2);
     ctx.fillStyle='rgba(235,235,225,.72)';ctx.strokeStyle='rgba(80,74,65,.45)';ctx.lineWidth=1;
     for(let i=0;i<3;i++){ctx.beginPath();ctx.moveTo(-7+i*5,5);ctx.lineTo(-4+i*4,-6-i);ctx.lineTo(1+i*4,4);ctx.closePath();ctx.fill();ctx.stroke();}
@@ -2053,16 +2162,23 @@
     try{
       if(resultMusicFadeTimer)clearInterval(resultMusicFadeTimer);
       gm.pause(); gm.currentTime=0; gm.muted=false; gm.volume=0;
-      void gm.play();
-      const target=.72, start=performance.now();
-      resultMusicFadeTimer=setInterval(()=>{
-        if(!gm||gm.paused){clearInterval(resultMusicFadeTimer);resultMusicFadeTimer=0;return;}
-        const p=Math.min(1,(performance.now()-start)/850);
-        const s=p*p*(3-2*p);
-        gm.volume=target*s;
-        if(p>=1){clearInterval(resultMusicFadeTimer);resultMusicFadeTimer=0;}
-      },30);
-    }catch(_){}
+      // Game Over music starts 1/3 second after the failure screen appears.
+      const target=.756;
+      setTimeout(()=>{
+        if(!gm||!musicEnabled||!isGameOver||gm.muted)return;
+        try{
+          void gm.play();
+          const start=performance.now();
+          resultMusicFadeTimer=setInterval(()=>{
+            if(!gm||gm.paused){clearInterval(resultMusicFadeTimer);resultMusicFadeTimer=0;return;}
+            const p=Math.min(1,(performance.now()-start)/850);
+            const s=p*p*(3-2*p);
+            gm.volume=target*s;
+            if(p>=1){clearInterval(resultMusicFadeTimer);resultMusicFadeTimer=0;}
+          },30);
+        }catch(_){ }
+      },333);
+    }catch(_){ }
   }
 
   function ensureResultMusic(){
@@ -2085,7 +2201,8 @@
       if(resultMusicFadeTimer)clearInterval(resultMusicFadeTimer);
       rm.muted=false;
       rm.volume=0;
-      try{ rm.currentTime=1; }catch(_){}
+      // The victory audio file itself has been trimmed by 1.5 seconds.
+      try{ rm.currentTime=0; }catch(_){}
       void rm.play();
       const target=.24;
       const start=performance.now();
