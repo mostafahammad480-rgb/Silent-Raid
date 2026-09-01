@@ -964,3 +964,21 @@ body.gameplay-fullscreen #gameScreen #gameCanvas {
   object-fit:fill !important;
   transform:none !important;
 }
+
+/* ===== V34 ANDROID MAIN-MENU CLEAN OVERRIDES =====
+   Final, single source of truth for the Android-only V32/V33 menu adjustments.
+   4) Main-menu command panel is exactly 10% smaller as a whole.
+   5) Main-menu thief/guard are exactly 30% larger than the V31 phone baseline.
+   6) Gameplay camera remains the existing Android-only V32/V33 value in script.js.
+*/
+@media (pointer:coarse) and (orientation:landscape){
+  .heist-menu .heist-menu-panel{
+    transform:translateX(-50%) scale(.90)!important;
+    transform-origin:center bottom!important;
+  }
+  .heist-menu .menu-actor{
+    width:min(390px,24.7vw)!important;
+    max-width:none!important;
+    height:auto!important;
+  }
+}

@@ -9,9 +9,9 @@
   // Camera height is reduced by 20% relative to the previous gameplay view.
   // In this 2D top-down renderer, that is represented by a 1 / 0.80 = 1.25x
   // visual zoom, with the camera following the player and clamping to the world.
-  const GAMEPLAY_CAMERA_ZOOM = 1.25;
+  const GAMEPLAY_CAMERA_ZOOM = 1.375; // V32 Android-only: 10% closer than V31's 1.25 zoom.
   const ROUND_CHARACTER_SCALE = 1.32;
-  const CORRIDOR_WIDEN_RATIO = 0.42;
+  const CORRIDOR_WIDEN_RATIO = 0.49; // V32: corridors widened by an additional ~5% relative to V31.
   // Slight additional passage clearance so narrow one-cell corridors are a little easier to traverse.
 
   const WALL_INSET_RATIO = CORRIDOR_WIDEN_RATIO / 2;
@@ -488,7 +488,7 @@
     const perfectTime = computePerfectTime(grid, playerCell, keyCells, vaultCell, escapeCell, cell) * .075 + 10;
     const bonus=[110,90,80,70,65][level.level-1];
 
-    return {seed,rng,cell,cols,rows,ox,oy,grid,floorCells:floor.map(c=>c.slice()),keys,vault,escape,guards,hazards,doors,cameras,backgroundCanvas:null,guardSpeed:88 + (level.level-1)*3 + (level.stage-1)*2,wallsDiscovered:[],wallMemory:0,standstill:0,lightRadius:190,perfectTime,timer:Math.max(20,(perfectTime+bonus)-10),radarPulses:[],crumbs:[],vaultOpen:false,vaultOpened:false,escapeArmed:false,lockdown:false,spawned:true,explosionFlash:0,lastPlayerMoving:false,alarmUntil:0,alarmTarget:null,objectiveFlash:0,musicBeat:0,timerRunning:false};
+    return {seed,rng,cell,cols,rows,ox,oy,grid,floorCells:floor.map(c=>c.slice()),keys,vault,escape,guards,hazards,doors,cameras,backgroundCanvas:null,guardSpeed:88 + (level.level-1)*3 + (level.stage-1)*2,wallsDiscovered:[],wallMemory:0,standstill:0,lightRadius:190,perfectTime,timer:Math.max(20,(perfectTime+bonus)-10+13),radarPulses:[],crumbs:[],vaultOpen:false,vaultOpened:false,escapeArmed:false,lockdown:false,spawned:true,explosionFlash:0,lastPlayerMoving:false,alarmUntil:0,alarmTarget:null,objectiveFlash:0,musicBeat:0,timerRunning:false};
   }
 
   function bfsDistancesFrom(grid, start){
@@ -634,9 +634,9 @@
   function worldToCanvas(w,gx,gy){ return {x:w.ox+gx*w.cell+w.cell/2,y:w.oy+gy*w.cell+w.cell/2}; }
 
   function updateHUD(){
-    const stageName=STAGE_META[level.stage-1]?.name||`المرحلة ${level.stage}`;
+    const stageName=`المرحلة ${level.stage}`;
     const levelHud=document.getElementById('levelHud');
-    if(levelHud) levelHud.textContent=`${stageName} • الدور ${level.level}/5`;
+    if(levelHud) levelHud.textContent=`${stageName} • الدور ${level.level}`;
     const sec=Math.max(0,Math.floor((world?.timer||0)+0.0001));
     const mm=String(Math.floor(sec/60)).padStart(2,'0'), ss=String(sec%60).padStart(2,'0');
     const timerHud=document.getElementById('timerHud'); if(timerHud) timerHud.textContent=`الوقت المتبقي: ${mm}:${ss}`;
@@ -1609,30 +1609,16 @@
       // Full canvas minus the circular hole = black outside, visible inside.
       ctx.fill('evenodd');
 
-      // Soft dark falloff around the edge. These are normal translucent rings
-      // drawn inside the already-open hole; they cannot cover the centre.
-      const rings = [
-        {r:radius, a:.55},
-        {r:radius*.90, a:.32},
-        {r:radius*.80, a:.16}
-      ];
-      for(const ring of rings){
-        const rg=ctx.createRadialGradient(p.x,p.y,Math.max(1,ring.r*.72),p.x,p.y,ring.r);
-        rg.addColorStop(0,'rgba(0,0,0,0)');
-        rg.addColorStop(1,`rgba(0,0,0,${ring.a})`);
-        ctx.fillStyle=rg;
-        ctx.beginPath();
-        ctx.arc(p.x,p.y,ring.r,0,Math.PI*2);
-        ctx.fill();
-      }
-      // Feathered edge: a thin, animated dusk ring makes the light contract/expand softly.
-      const feather=ctx.createRadialGradient(p.x,p.y,Math.max(1,radius*.72),p.x,p.y,radius*1.06);
-      feather.addColorStop(0,'rgba(0,0,0,0)');
-      feather.addColorStop(.78,'rgba(0,0,0,.08)');
-      feather.addColorStop(1,'rgba(0,0,0,.22)');
-      ctx.fillStyle=feather;
+      // Single feathered radial gradient instead of four gradient passes per frame.
+      // This preserves the soft vision edge while substantially reducing Canvas work.
+      const lightEdge=ctx.createRadialGradient(p.x,p.y,Math.max(1,radius*.66),p.x,p.y,radius*1.05);
+      lightEdge.addColorStop(0,'rgba(0,0,0,0)');
+      lightEdge.addColorStop(.72,'rgba(0,0,0,.03)');
+      lightEdge.addColorStop(.90,'rgba(0,0,0,.12)');
+      lightEdge.addColorStop(1,'rgba(0,0,0,.24)');
+      ctx.fillStyle=lightEdge;
       ctx.beginPath();
-      ctx.arc(p.x,p.y,radius*1.06,0,Math.PI*2);
+      ctx.arc(p.x,p.y,radius*1.05,0,Math.PI*2);
       ctx.fill();
     }else{
       ctx.fillRect(0,0,W,H);
@@ -2576,11 +2562,16 @@
 
   let simAccumulator=0;
   const FIXED_DT=1/60;
+  // Keep simulation at a stable 60Hz while avoiding duplicate full Canvas renders
+  // on 90/120Hz displays. This reduces GPU/CPU pressure without changing gameplay timing.
+  const TARGET_RENDER_MS=1000/60;
+  let lastPresentedFrame=0;
 
   function startGameRenderLoop(){
     if(gameLoopActive) return;
     gameLoopActive=true;
     simAccumulator=0;
+    lastPresentedFrame=0;
     lastFrame=performance.now();
     gameFrameRaf=requestAnimationFrame(frame);
   }
@@ -2604,7 +2595,11 @@
       simAccumulator-=FIXED_DT; steps++;
     }
     if(steps===4) simAccumulator=0;
-    try{draw(now)}catch(err){console.error('draw',err)}
+    // On high-refresh displays, skip redundant rasterization frames while keeping
+    // the fixed-step simulation deterministic at 60Hz.
+    if(!lastPresentedFrame || now-lastPresentedFrame>=TARGET_RENDER_MS-0.5){
+      try{draw(now); lastPresentedFrame=now}catch(err){console.error('draw',err)}
+    }
     gameFrameRaf=requestAnimationFrame(frame);
   }
   // Development invariants: these helpers are lexical functions inside this IIFE,

@@ -27,6 +27,7 @@ public class MainActivity extends Activity {
         getWindow().setFlags(1024, 1024);
 
         webView = new WebView(this);
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         webView.setBackgroundColor(0xFF000000);
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
         WebSettings s = webView.getSettings();
@@ -41,7 +42,7 @@ public class MainActivity extends Activity {
         webView.clearCache(true);
         webView.setWebViewClient(new WebViewClient());
         webView.setWebChromeClient(new WebChromeClient());
-        webView.loadUrl("file:///android_asset/game/index.html?v=31");
+        webView.loadUrl("file:///android_asset/game/index.html?v=33");
         setContentView(webView);
     }
 
