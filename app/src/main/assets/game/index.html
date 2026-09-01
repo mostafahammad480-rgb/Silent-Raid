@@ -41,11 +41,71 @@
         <div class="menu-actions">
           <button id="startBtn" class="primary-btn heist-primary"><span>ابدأ المداهمة</span><b>01</b></button>
           <button id="howBtn" class="secondary-btn heist-secondary"><span class="btn-icon">◎</span><span>طريقة اللعب</span></button>
+          <button id="settingsBtn" class="secondary-btn heist-secondary settings-menu-btn"><span class="btn-icon">⚙️</span><span>الإعدادات</span></button>
         </div>
         <div class="menu-tip">اجمع المفاتيح • افتح الخزنة • خذ المال • اهرب قبل الإغلاق</div><div class="menu-credit">By : Mostafa Hammad</div>
       </div>
       <div class="menu-footer"><span>مدينة القاهرة • فرع البنك المركزي</span><span>لا تترك أثرًا</span></div>
+      <button id="musicToggleBtn" class="music-toggle" type="button" aria-pressed="false" aria-label="إيقاف الموسيقى">🎵 إيقاف الموسيقى</button>
       <div class="scanlines"></div>
+      <div id="controlSetupPanel" class="control-setup-panel glass-panel hidden" role="dialog" aria-modal="true" aria-labelledby="controlSetupTitle">
+        <div class="settings-head">
+          <div>
+            <div class="settings-kicker">تحكم الهاتف</div>
+            <h2 id="controlSetupTitle">اختر مكان أدوات التحكم</h2>
+          </div>
+          <button id="closeControlSetup" class="icon-btn" aria-label="إغلاق">×</button>
+        </div>
+        <p class="setup-lead">قبل دخول الدور الأول، اختر الشكل الذي يناسب يدك.</p>
+        <div class="control-choice-grid">
+          <button class="control-choice" data-layout="analog-right" type="button">
+            <div class="control-choice-title">🕹️ الأنالوج يمين</div>
+            <svg class="control-diagram" viewBox="0 0 260 150" role="img" aria-label="الأنالوج على اليمين والأزرار على اليسار">
+              <rect x="35" y="8" width="190" height="134" rx="20" class="phone-outline"/>
+              <circle cx="178" cy="106" r="25" class="diagram-stick"/><circle cx="178" cy="106" r="10" class="diagram-stick-core"/>
+              <rect x="55" y="100" width="52" height="16" rx="8" class="diagram-button"/><rect x="55" y="121" width="52" height="12" rx="6" class="diagram-button small"/>
+            </svg>
+            <span>الأزرار يسار • الأنالوج يمين</span>
+          </button>
+          <button class="control-choice" data-layout="analog-left" type="button">
+            <div class="control-choice-title">🕹️ الأنالوج يسار</div>
+            <svg class="control-diagram" viewBox="0 0 260 150" role="img" aria-label="الأنالوج على اليسار والأزرار على اليمين">
+              <rect x="35" y="8" width="190" height="134" rx="20" class="phone-outline"/>
+              <circle cx="82" cy="106" r="25" class="diagram-stick"/><circle cx="82" cy="106" r="10" class="diagram-stick-core"/>
+              <rect x="153" y="100" width="52" height="16" rx="8" class="diagram-button"/><rect x="153" y="121" width="52" height="12" rx="6" class="diagram-button small"/>
+            </svg>
+            <span>الأنالوج يسار • الأزرار يمين</span>
+          </button>
+        </div>
+        <p class="setup-save-note">سيتم حفظ التعديل ويمكنك تغييره من الإعدادات.</p>
+      </div>
+      <div id="settingsPanel" class="settings-panel glass-panel hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <div class="settings-head">
+          <div>
+            <div class="settings-kicker">إعدادات اللعبة</div>
+            <h2 id="settingsTitle">الإعدادات</h2>
+          </div>
+          <button id="closeSettings" class="icon-btn" aria-label="إغلاق">×</button>
+        </div>
+        <div class="settings-section">
+          <h3>🎮 تخطيط التحكم</h3>
+          <div class="control-choice-grid settings-choice-grid">
+            <button class="control-choice" data-layout="analog-right" type="button">
+              <div class="control-choice-title">الأنالوج يمين</div>
+              <svg class="control-diagram" viewBox="0 0 260 150" aria-hidden="true"><rect x="35" y="8" width="190" height="134" rx="20" class="phone-outline"/><circle cx="178" cy="106" r="25" class="diagram-stick"/><circle cx="178" cy="106" r="10" class="diagram-stick-core"/><rect x="55" y="100" width="52" height="16" rx="8" class="diagram-button"/><rect x="55" y="121" width="52" height="12" rx="6" class="diagram-button small"/></svg>
+            </button>
+            <button class="control-choice" data-layout="analog-left" type="button">
+              <div class="control-choice-title">الأنالوج يسار</div>
+              <svg class="control-diagram" viewBox="0 0 260 150" aria-hidden="true"><rect x="35" y="8" width="190" height="134" rx="20" class="phone-outline"/><circle cx="82" cy="106" r="25" class="diagram-stick"/><circle cx="82" cy="106" r="10" class="diagram-stick-core"/><rect x="153" y="100" width="52" height="16" rx="8" class="diagram-button"/><rect x="153" y="121" width="52" height="12" rx="6" class="diagram-button small"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="settings-section">
+          <h3>🎵 الموسيقى</h3>
+          <button id="settingsMusicToggle" class="settings-toggle" type="button" aria-pressed="false">🎵 إيقاف الموسيقى</button>
+          <p class="settings-note">عند الإيقاف تتوقف موسيقى الخلفية وموسيقى الفوز والخسارة فقط، بينما تبقى المؤثرات الصوتية.</p>
+        </div>
+      </div>
       <div id="howPanel" class="how-panel glass-panel hidden" role="dialog" aria-modal="true" aria-labelledby="howTitle">
         <div class="panel-head"><h2 id="howTitle">طريقة اللعب</h2><button id="closeHow" class="icon-btn" aria-label="إغلاق">×</button></div>
         <div class="how-grid">

@@ -8,7 +8,7 @@
 
   // Fullscreen responsive renderer. Physics/world coordinates remain the original
   // 800x600 space. Only the final render gets a uniform scale and a clamped camera.
-  const GAME_RENDER_ZOOM = 1.18;
+  const GAME_RENDER_ZOOM = 1.08;
   const viewport = { width: W, height: H, dpr: 1, scale: 1, viewW: W, viewH: H, cameraX: 0, cameraY: 0 };
 
   function clampValue(v,min,max){ return Math.max(min, Math.min(max, v)); }
@@ -20,10 +20,20 @@
     viewport.width = width;
     viewport.height = height;
     viewport.dpr = dpr;
-    // Gameplay-only zoom: scale from the viewport height so the phone uses the
-    // full landscape height while the camera exposes a larger world window.
-    // The camera is clamped to the logical 800×600 world, so map edges are never cropped.
-    viewport.scale = (height / H) * GAME_RENDER_ZOOM;
+
+    // Gameplay-only zoom. Start from the requested 1.08x visual zoom, then
+    // cap it by the ACTUAL generated map bounds. This guarantees that the
+    // complete map remains inside the physical viewport: zoom never becomes
+    // a crop operation. The canvas itself still occupies 100% of the screen.
+    let requestedScale = (height / H) * GAME_RENDER_ZOOM;
+    if(world && Number.isFinite(world.cols) && Number.isFinite(world.rows) && Number.isFinite(world.cell)){
+      const mapWidth = Math.max(1, world.cols * world.cell);
+      const mapHeight = Math.max(1, world.rows * world.cell);
+      const fitScaleX = width / mapWidth;
+      const fitScaleY = height / mapHeight;
+      requestedScale = Math.min(requestedScale, fitScaleX, fitScaleY);
+    }
+    viewport.scale = Math.max(0.1, requestedScale);
     viewport.viewW = width / viewport.scale;
     viewport.viewH = height / viewport.scale;
     canvas.width = Math.max(1, Math.round(width * dpr));
@@ -39,10 +49,31 @@
       viewport.cameraY = (H - viewport.viewH) / 2;
       return;
     }
-    const maxX = Math.max(0, W - viewport.viewW);
-    const maxY = Math.max(0, H - viewport.viewH);
-    viewport.cameraX = maxX > 0 ? clampValue(world.player.x - viewport.viewW/2, 0, maxX) : (W - viewport.viewW)/2;
-    viewport.cameraY = maxY > 0 ? clampValue(world.player.y - viewport.viewH/2, 0, maxY) : (H - viewport.viewH)/2;
+
+    // Clamp against the generated bank floor, not merely the outer 800×600
+    // canvas. When the viewport is large enough to contain the whole map,
+    // center that full map. When it is smaller, follow the player but never
+    // cross an actual map edge.
+    const mapLeft = Number.isFinite(world.ox) ? world.ox : 0;
+    const mapTop = Number.isFinite(world.oy) ? world.oy : 0;
+    const mapWidth = Number.isFinite(world.cols) && Number.isFinite(world.cell) ? world.cols * world.cell : W;
+    const mapHeight = Number.isFinite(world.rows) && Number.isFinite(world.cell) ? world.rows * world.cell : H;
+    const mapRight = mapLeft + mapWidth;
+    const mapBottom = mapTop + mapHeight;
+
+    const desiredX = world.player.x - viewport.viewW / 2;
+    const desiredY = world.player.y - viewport.viewH / 2;
+    const minX = mapRight - viewport.viewW;
+    const maxX = mapLeft;
+    const minY = mapBottom - viewport.viewH;
+    const maxY = mapTop;
+
+    viewport.cameraX = minX <= maxX
+      ? clampValue(desiredX, minX, maxX)
+      : (mapLeft + mapWidth / 2 - viewport.viewW / 2);
+    viewport.cameraY = minY <= maxY
+      ? clampValue(desiredY, minY, maxY)
+      : (mapTop + mapHeight / 2 - viewport.viewH / 2);
   }
 
   window.addEventListener('resize', resizeGameSurface, {passive:true});
@@ -60,6 +91,57 @@
   let isMapFullyLoaded = false;
   let isGameOver = false;
   let isMuted = false;
+  const MUSIC_PREF_KEY = 'silent_raid_music_enabled_v1';
+  const CONTROL_LAYOUT_KEY = 'silent_raid_control_layout_v1';
+  let musicEnabled = true;
+  let controlLayout = 'analog-right';
+  try {
+    const savedMusic = localStorage.getItem(MUSIC_PREF_KEY);
+    if(savedMusic !== null) musicEnabled = savedMusic !== '0';
+    const savedLayout = localStorage.getItem(CONTROL_LAYOUT_KEY);
+    if(savedLayout === 'analog-left' || savedLayout === 'analog-right') controlLayout = savedLayout;
+  } catch(_) {}
+
+  function applyControlLayout(layout){
+    controlLayout = (layout === 'analog-left') ? 'analog-left' : 'analog-right';
+    try { localStorage.setItem(CONTROL_LAYOUT_KEY, controlLayout); } catch(_) {}
+    const appEl=document.getElementById('app');
+    if(appEl) appEl.dataset.controlLayout=controlLayout;
+    document.querySelectorAll('.control-choice').forEach(btn=>btn.classList.toggle('selected', btn.dataset.layout===controlLayout));
+  }
+
+  function hasSavedControlLayout(){
+    try { return localStorage.getItem(CONTROL_LAYOUT_KEY) === 'analog-left' || localStorage.getItem(CONTROL_LAYOUT_KEY) === 'analog-right'; } catch(_) { return false; }
+  }
+
+  function setMusicEnabled(next){
+    musicEnabled=!!next;
+    try { localStorage.setItem(MUSIC_PREF_KEY, musicEnabled ? '1' : '0'); } catch(_) {}
+    updateMusicUi();
+    try {
+      if(!musicEnabled){
+        if(mainTitleMusic){ mainTitleMusic.pause(); mainTitleMusic.muted=true; }
+        if(resultMusic){ resultMusic.pause(); resultMusic.muted=true; }
+        if(gameOverMusic){ gameOverMusic.pause(); gameOverMusic.muted=true; }
+        try{ stopLocalMusic(); }catch(_){}
+      }else{
+        if(audio?.ac && music.finalGain){
+          music.finalGain.gain.cancelScheduledValues(audio.ac.currentTime);
+          music.finalGain.gain.setTargetAtTime(.08,audio.ac.currentTime,.05);
+        }
+        if(gameState==='MENU' || gameState==='LEVELS'){ titleMusicGestureUnlocked=true; fadeMainTitleIn(false); }
+        else if(gameState==='PLAYING'){ setMainTitleGameplayVolume(); }
+      }
+    } catch(_) {}
+  }
+
+  function updateMusicUi(){
+    const text = musicEnabled ? '🎵 إيقاف الموسيقى' : '🔇 تشغيل الموسيقى';
+    ['musicToggleBtn','settingsMusicToggle'].forEach(id=>{
+      const btn=document.getElementById(id);
+      if(btn){ btn.textContent=text; btn.setAttribute('aria-pressed',String(!musicEnabled)); }
+    });
+  }
   let audio = null;
   let vaultAudio = null;
   let escapeAudio = null;
@@ -140,7 +222,7 @@
     // while moving from the main menu to the round-selection screen.
     if(next==='MENU'){ fadeMainTitleIn(false, 0.28); }
     else if(next==='LEVELS'){ fadeMainTitleIn(false, 0.28); }
-    else if(next==='PLAYING'){ fadeMainTitleIn(false, 0.40); }
+    else if(next==='PLAYING'){ fadeMainTitleIn(false, GAMEPLAY_MUSIC_VOLUME); }
     else { fadeMainTitleOut(); }
   }
 
@@ -448,10 +530,12 @@
     // track and produce the unwanted buzzing/"ززز" sound on the LEVELS screen.
     try{ stopLocalMusic(); }catch(_){}
     // Keep the uploaded title MP3 as the only background music for MENU + LEVELS.
-    try{ if(!isMuted) fadeMainTitleIn(false); }catch(_){}
+    try{ if(musicEnabled) fadeMainTitleIn(false); }catch(_){}
     renderLevelSelect();
     setState('LEVELS');
   }
+
+  let pendingRoundStart = null;
 
   function selectLevel(stage, round, startImmediately=true){
     stage=Math.max(1,Math.min(3,Number(stage)||1));
@@ -464,7 +548,21 @@
     level.level=round;
     level.turn=((level.stage-1)*5)+level.level;
     renderLevelSelect();
+    if(startImmediately && round===1 && !hasSavedControlLayout()){
+      pendingRoundStart={stage,round};
+      document.getElementById('controlSetupPanel')?.classList.remove('hidden');
+      applyControlLayout(controlLayout);
+      return;
+    }
     if(startImmediately) startRaid();
+  }
+
+  function confirmPendingRoundStart(){
+    if(!pendingRoundStart) return;
+    document.getElementById('controlSetupPanel')?.classList.add('hidden');
+    const target=pendingRoundStart; pendingRoundStart=null;
+    level.stage=target.stage; level.level=target.round; level.turn=((level.stage-1)*5)+level.level;
+    startRaid();
   }
 
   function renderLevelSelect(){
@@ -533,6 +631,7 @@
     const p=worldToCanvas(nextWorld,pCell[0],pCell[1]);
     nextWorld.player={x:p.x,y:p.y,vx:0,vy:0,r:9,lastDir:{x:1,y:0},wobble:0,opacity:1,keys:0};
     world=nextWorld;
+    resizeGameSurface();
     world.timerRunning=true;
     isMapFullyLoaded = Array.isArray(world.grid)&&world.grid.length>0&&world.player&&Number.isFinite(world.player.x)&&Number.isFinite(world.player.y)&&world.keys.length===3;
     updateHUD();
@@ -1568,7 +1667,7 @@
     music.compressor.release.value=.14;
 
     music.finalGain=ac.createGain();
-    music.finalGain.gain.value=isMuted?0:0.08;
+    music.finalGain.gain.value=musicEnabled?0.08:0;
 
     music.analyser=ac.createAnalyser();
     music.analyser.fftSize=1024;
@@ -1654,7 +1753,7 @@
   }
 
   function startNativeMusic(){
-    if(isMuted)return false;
+    if(!musicEnabled)return false;
     if(!ensureAudio()||!audio?.ac){
       music.lastError='NO_AUDIO_CONTEXT';
       setAudioStatusSafe('الموسيقى: تعذر فتح الصوت');
@@ -1682,7 +1781,7 @@
   }
 
   function crossfadeMusic(dt){
-    if(!music.started||!music.finalGain||isMuted)return;
+    if(!music.started||!music.finalGain||!musicEnabled)return;
     const rate=Math.min(1,dt/.45);
     const wantA=music.target==='ambient'?1:0;
     const wantC=music.target==='chase'?1:0;
@@ -1693,7 +1792,7 @@
   }
 
   function setMusicChase(chasing){
-    if(!music.started||isMuted)return;
+    if(!music.started||!musicEnabled)return;
     music.target=chasing?'chase':'ambient';
   }
 
@@ -1721,7 +1820,7 @@
   let mainTitleStartPositionApplied=false;
   const MAIN_TITLE_START=2;
   const MAIN_MENU_VOLUME=0.28;
-  const GAMEPLAY_MUSIC_VOLUME=0.40;
+  const GAMEPLAY_MUSIC_VOLUME=0.30;
 
   function seekMainTitleToStart(){
     const mm=mainTitleMusic;
@@ -1746,6 +1845,7 @@
         if(!mainTitleMusic.src) mainTitleMusic.src='assets/main-title.mp3';
         mainTitleMusic.addEventListener('loadedmetadata',()=>seekMainTitleToStart(),{once:true});
         mainTitleMusic.addEventListener('ended',()=>{
+          if(!musicEnabled) return;
           try{
             mainTitleStartPositionApplied=false;
             mainTitleMusic.currentTime=MAIN_TITLE_START;
@@ -1754,7 +1854,7 @@
         });
         mainTitleMusic.addEventListener('error',()=>{ setAudioStatusSafe('موسيقى الواجهة: تعذر تحميل الملف'); },{once:false});
       }
-      mainTitleMusic.muted=isMuted;
+      mainTitleMusic.muted=!musicEnabled;
       seekMainTitleToStart();
       return mainTitleMusic;
     }catch(_){return null;}
@@ -1762,7 +1862,7 @@
 
   function fadeMainTitleIn(restart=false, targetVolume=MAIN_MENU_VOLUME){
     const mm=ensureMainTitleMusic();
-    if(!mm||isMuted)return false;
+    if(!mm||!musicEnabled)return false;
     try{
       if(mainTitleFadeTimer)clearInterval(mainTitleFadeTimer);
       mm.muted=false;
@@ -1796,7 +1896,7 @@
 
   function setMainTitleGameplayVolume(){
     const mm=ensureMainTitleMusic();
-    if(!mm||isMuted)return false;
+    if(!mm||!musicEnabled)return false;
     try{
       if(mm.paused){
         seekMainTitleToStart();
@@ -1870,7 +1970,7 @@
 
   function fadeGameOverMusicIn(){
     const gm=ensureGameOverMusic();
-    if(!gm||isMuted)return;
+    if(!gm||!musicEnabled)return;
     try{
       if(resultMusicFadeTimer)clearInterval(resultMusicFadeTimer);
       gm.pause(); gm.currentTime=0; gm.muted=false; gm.volume=0;
@@ -1901,7 +2001,7 @@
 
   function fadeResultMusicIn(){
     const rm=ensureResultMusic();
-    if(!rm||isMuted)return;
+    if(!rm||!musicEnabled)return;
     try{
       if(resultMusicFadeTimer)clearInterval(resultMusicFadeTimer);
       rm.muted=false;
@@ -1953,9 +2053,9 @@
     try{
       if(audio?.ac?.state==='running' && music.finalGain){
         music.finalGain.gain.cancelScheduledValues(audio.ac.currentTime);
-        music.finalGain.gain.setTargetAtTime(isMuted?0:.08,audio.ac.currentTime,.08);
+        music.finalGain.gain.setTargetAtTime(musicEnabled ? .08 : 0,audio.ac.currentTime,.08);
       }
-      if(!isMuted && gameState==='PLAYING') setMainTitleGameplayVolume();
+      if(musicEnabled && gameState==='PLAYING') setMainTitleGameplayVolume();
     }catch(_){}
   }
 
@@ -2172,7 +2272,7 @@
     const btn=e.target.closest && e.target.closest('button');
     try{
       ensureAudio();
-      if(!titleMusicGestureUnlocked && !isMuted && (gameState==='MENU' || gameState==='LEVELS')){
+      if(!titleMusicGestureUnlocked && musicEnabled && (gameState==='MENU' || gameState==='LEVELS')){
         const mm=ensureMainTitleMusic();
         if(mm && mm.src){
           titleMusicGestureUnlocked=true;
@@ -2193,6 +2293,26 @@
   document.getElementById('startBtn').addEventListener('click', handleStartButton);
   document.getElementById('howBtn').addEventListener('click',()=>document.getElementById('howPanel').classList.remove('hidden'));
   document.getElementById('closeHow').addEventListener('click',()=>document.getElementById('howPanel').classList.add('hidden'));
+  document.getElementById('settingsBtn').addEventListener('click',()=>{
+    document.getElementById('settingsPanel').classList.remove('hidden');
+    applyControlLayout(controlLayout);
+    updateMusicUi();
+  });
+  document.getElementById('closeSettings').addEventListener('click',()=>document.getElementById('settingsPanel').classList.add('hidden'));
+  document.getElementById('closeControlSetup').addEventListener('click',()=>{
+    document.getElementById('controlSetupPanel').classList.add('hidden');
+    pendingRoundStart=null;
+  });
+  document.querySelectorAll('.control-choice').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      applyControlLayout(btn.dataset.layout);
+      if(btn.closest('#controlSetupPanel')) confirmPendingRoundStart();
+    });
+  });
+  document.getElementById('musicToggleBtn')?.addEventListener('click',()=>setMusicEnabled(!musicEnabled));
+  document.getElementById('settingsMusicToggle')?.addEventListener('click',()=>setMusicEnabled(!musicEnabled));
+  applyControlLayout(controlLayout);
+  updateMusicUi();
   function updateMuteUi(){
     const btn=document.getElementById('muteBtn');
     if(!btn)return;
@@ -2302,15 +2422,17 @@
   renderMenuActorsOnce();
   renderLevelSelect();
   setState('MENU');
-  // Best-effort audible autoplay. Browsers may block it until a normal page interaction;
-  // there is deliberately no dedicated 'play music' button.
-  try {
-    const mm=ensureMainTitleMusic();
-    if(mm){
-      mm.autoplay=true;
-      mm.muted=!!isMuted;
-      const p=mm.play();
-      if(p&&typeof p.catch==='function') p.catch(()=>{ titleMusicGestureUnlocked=false; });
-    }
-  } catch(_) {}
+  // Best-effort audible autoplay. Browsers may block it until a normal page interaction.
+  // When the user disabled music, do not start a muted background stream at all.
+  if(musicEnabled){
+    try {
+      const mm=ensureMainTitleMusic();
+      if(mm){
+        mm.autoplay=true;
+        mm.muted=false;
+        const p=mm.play();
+        if(p&&typeof p.catch==='function') p.catch(()=>{ titleMusicGestureUnlocked=false; });
+      }
+    } catch(_) {}
+  }
 })();
